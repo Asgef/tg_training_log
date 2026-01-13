@@ -1,6 +1,6 @@
 ---
 
-description: "Task list template for feature implementation"
+description: "Task list template for feature implementation. All tasks should align with the principles defined in .specify/memory/constitution.md."
 ---
 
 # Tasks: [FEATURE NAME]

@@ -1,50 +1,38 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: 1.0.0 -> 1.1.0
+- Modified principles: Все принципы пересмотрены и уточнены на основе spec.md
+- Added sections: Нет
+- Removed sections: Нет
+- Templates requiring updates:
+  - ✅ .specify/templates/plan-template.md
+  - ⏳ .specify/templates/tasks-template.md (проверка не выявила необходимости в изменениях)
+-->
+# Конституция проекта "TG Training Log"
 
-## Core Principles
+## Ключевые принципы
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Быстродействие и простота
+Главная цель — предоставить пользователю максимально быстрый и удобный способ фиксации тренировочных подходов. Интерфейс должен быть интуитивно понятным и требовать минимального количества действий. Скорость взаимодействия с пользователем является приоритетом.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Безопасность и контроль доступа
+Продукт является "закрытым". Доступ к основному функционалу предоставляется исключительно после подтверждения регистрации пользователя администратором. Это незыблемое правило для обеспечения приватности и контроля.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Чистая архитектура и модульность
+Система должна быть спроектирована в соответствии с принципами "Clean Architecture". Обязательно строгое разделение на слои (domain, usecases, repositories, transport, integrations), что обеспечивает высокую тестируемость, гибкость и возможность будущего расширения.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Надёжность и идемпотентность
+Сервис должен быть устойчив к перезапускам и сбоям. Все операции, особенно связанные с нажатием inline-кнопок, должны быть идемпотентными — повторное выполнение операции не должно приводить к созданию дубликатов или поломке состояния.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Неразрушающая интеграция данных
+Экспорт данных в Google Sheets должен производиться в режиме "только добавление" (append-only) для основного журнала (`Log`). Это гарантирует сохранность исторической последовательности и предотвращает случайную потерю данных при синхронизации. Редактирование записей в Sheets не входит в MVP.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Процесс разработки
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+Работа над функционалом организуется вокруг пользовательских историй (User Stories), описанных в спецификации. Каждая история должна представлять собой независимый, тестируемый и ценный для пользователя инкремент продукта.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Управление
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Настоящая Конституция является основным документом, определяющим принципы разработки. Любое изменение, нарушающее эти принципы, требует явного обоснования и согласования. Поправки в саму Конституцию должны быть документированы, согласованы и сопровождены обновлением версии.
 
-## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
-
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Версия**: 1.1.0 | **Утверждена**: 2026-01-13 | **Последнее изменение**: 2026-01-13
