@@ -14,5 +14,18 @@ services:
       - "5433:5432"
     restart: always
 
+  app:
+    build: .
+    container_name: tg_training_log_app
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    restart: always
+    volumes:
+      - .:/app
+      - uv_cache:/root/.cache/uv
+
 volumes:
   postgres_data:
+  uv_cache:
