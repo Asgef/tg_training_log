@@ -5,11 +5,13 @@ from sqlalchemy import pool
 
 from alembic import context
 
-import os
-from dotenv import load_dotenv
+import sys
+from pathlib import Path
 
-# Загрузка переменных окружения
-load_dotenv()
+# Добавляем корневую директорию проекта в путь
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from src.configs.config import config as app_config
 
 # это объект конфигурации Alembic, который предоставляет
 # доступ к значениям в используемом .ini файле.
@@ -45,7 +47,7 @@ def run_migrations_offline() -> None:
     вывод скрипта.
 
     """
-    url = os.environ.get("DATABASE_URL")
+    url = app_config.database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -68,7 +70,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        url=os.environ.get("DATABASE_URL"),
+        url=app_config.database_url,
     )
 
     with connectable.connect() as connection:

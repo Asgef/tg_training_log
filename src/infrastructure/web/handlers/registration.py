@@ -1,18 +1,18 @@
 # ruff: noqa: F821
 import logging
-import os
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from src.configs.config import config
 
 logger = logging.getLogger(__name__)
 
 router = Router()
 
-ADMIN_IDS = [int(admin_id.strip()) for admin_id in os.environ.get("ADMIN_ID", "").split(',') if admin_id.strip()]
+ADMIN_IDS = config.admin_ids
 
 class RegistrationStates(StatesGroup):
     waiting_for_description = State()

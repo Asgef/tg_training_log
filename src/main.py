@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import os
-from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
@@ -9,6 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 # Импорт модулей проекта
 from src.configs.logging_config import setup_logging
+from src.configs.config import config
 from src.infrastructure.db.base import get_session
 from src.infrastructure.db.repositories.user_repository import UserRepository
 from src.infrastructure.db.repositories.workout_session_repository import (
@@ -24,9 +23,6 @@ from src.application.use_cases.google_sheets_export import GoogleSheetsExportUse
 from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
 from src.infrastructure.web.handlers import registration, workout, machine, common
 from src.infrastructure.web.middlewares import RegistrationCheckMiddleware
-
-# Загрузка переменных окружения
-load_dotenv()
 
 # Настройка логирования
 setup_logging()
@@ -50,7 +46,7 @@ async def main() -> None:
     storage = MemoryStorage()
 
     # Инициализация бота и диспетчера
-    bot = Bot(os.getenv("BOT_TOKEN"), parse_mode=ParseMode.HTML)
+    bot = Bot(config.bot_token, parse_mode=ParseMode.HTML)
     dp = Dispatcher(storage=storage)
 
     # --- Настройка Dependency Injection (упрощённая) ---

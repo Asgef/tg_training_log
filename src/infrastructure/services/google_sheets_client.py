@@ -1,5 +1,3 @@
-import json
-import os
 import logging
 from typing import List, Any
 
@@ -7,20 +5,21 @@ import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
+from src.configs.config import config
+
 logger = logging.getLogger(__name__)
 
 
 class GoogleSheetsClient:
     def __init__(self):
         try:
-            creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-            if not creds_json:
+            if not config.google_credentials_json:
                 logger.error("Переменная окружения GOOGLE_CREDENTIALS_JSON не установлена.")
                 raise ValueError(
                     "Переменная окружения GOOGLE_CREDENTIALS_JSON не установлена."
                 )
 
-            creds_info = json.loads(creds_json)
+            creds_info = config.get_google_credentials_dict()
             scopes = [
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive",

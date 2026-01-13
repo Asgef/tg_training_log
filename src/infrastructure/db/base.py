@@ -1,20 +1,19 @@
-import os
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
 
+from src.configs.config import config
+
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-if not DATABASE_URL:
+if not config.database_url:
     logger.error(
         "Переменная окружения DATABASE_URL не установлена. Подключение к базе данных не удастся."
     )
     # В реальном приложении стоит поднять ошибку или завершить работу здесь
 
-engine = create_async_engine(DATABASE_URL)
+engine = create_async_engine(config.database_url)
 AsyncSessionLocal = sessionmaker(
     autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
 )

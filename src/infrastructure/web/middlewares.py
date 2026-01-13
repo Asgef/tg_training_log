@@ -1,4 +1,3 @@
-import os
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import (
@@ -9,6 +8,7 @@ from aiogram.types import (
 )
 
 from src.application.repositories import IUserRepository
+from src.configs.config import config
 
 # Заглушка для dependency injection
 user_repository: IUserRepository = None  # type: ignore
@@ -37,12 +37,7 @@ class RegistrationCheckMiddleware(BaseMiddleware):
         ):
             return await handler(event, data)
 
-        ADMIN_IDS = [
-            int(admin_id.strip())
-            for admin_id in os.environ.get("ADMIN_ID", "").split(",")
-            if admin_id.strip()
-        ]
-        if user_id in ADMIN_IDS:
+        if user_id in config.admin_ids:
             return await handler(event, data)
 
         user = await user_repository.get_by_telegram_id(user_id)
