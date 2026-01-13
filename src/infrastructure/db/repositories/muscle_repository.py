@@ -22,18 +22,18 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             result = await self.session.execute(stmt)
             muscle = result.scalar_one_or_none()
             if muscle:
-                logger.debug(f"Retrieved muscle {item_id}.")
+                logger.debug(f"Получена мышца {item_id}.")
             else:
-                logger.debug(f"Muscle {item_id} not found.")
+                logger.debug(f"Мышца {item_id} не найдена.")
             return muscle
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_by_id for muscle {item_id}: {e}", exc_info=True
+                f"SQLAlchemyError в get_by_id для мышцы {item_id}: {e}", exc_info=True
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_by_id for muscle {item_id}: {e}",
+                f"Неожиданная ошибка в get_by_id для мышцы {item_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -43,17 +43,17 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             self.session.add(muscle)
             await self.session.commit()
             await self.session.refresh(muscle)
-            logger.info(f"Added new muscle {muscle.id}.")
+            logger.info(f"Добавлена новая мышца {muscle.id}.")
             return muscle
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in add muscle {muscle.id}: {e}", exc_info=True
+                f"SQLAlchemyError при добавлении мышцы {muscle.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in add muscle {muscle.id}: {e}", exc_info=True
+                f"Неожиданная ошибка при добавлении мышцы {muscle.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -62,17 +62,17 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
         try:
             await self.session.commit()
             await self.session.refresh(muscle)
-            logger.info(f"Updated muscle {muscle.id}.")
+            logger.info(f"Обновлена мышца {muscle.id}.")
             return muscle
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in update muscle {muscle.id}: {e}", exc_info=True
+                f"SQLAlchemyError при обновлении мышцы {muscle.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in update muscle {muscle.id}: {e}", exc_info=True
+                f"Неожиданная ошибка при обновлении мышцы {muscle.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -88,13 +88,13 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
                 logger.warning(f"Attempted to delete non-existent muscle {item_id}.")
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in delete muscle {item_id}: {e}", exc_info=True
+                f"SQLAlchemyError при удалении мышцы {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in delete muscle {item_id}: {e}", exc_info=True
+                f"Неожиданная ошибка при удалении мышцы {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -104,13 +104,13 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             stmt = select(Muscle).options(selectinload(Muscle.group))
             result = await self.session.execute(stmt)
             muscles = list(result.scalars().all())
-            logger.debug(f"Retrieved {len(muscles)} muscles.")
+            logger.debug(f"Получено {len(muscles)} мышц.")
             return muscles
         except SQLAlchemyError as e:
             logger.error(f"SQLAlchemyError in get_all_muscles: {e}", exc_info=True)
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in get_all_muscles: {e}", exc_info=True)
+            logger.error(f"Неожиданная ошибка в get_all_muscles: {e}", exc_info=True)
             raise
 
     async def get_muscles_by_ids(self, muscle_ids: List[int]) -> List[Muscle]:
@@ -122,11 +122,11 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             )
             result = await self.session.execute(stmt)
             muscles = list(result.scalars().all())
-            logger.debug(f"Retrieved {len(muscles)} muscles by IDs: {muscle_ids}.")
+            logger.debug(f"Получено {len(muscles)} мышц по ID: {muscle_ids}.")
             return muscles
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_muscles_by_ids {muscle_ids}: {e}",
+                f"SQLAlchemyError в get_muscles_by_ids {muscle_ids}: {e}",
                 exc_info=True,
             )
             raise
@@ -142,7 +142,7 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             stmt = select(MuscleGroup)
             result = await self.session.execute(stmt)
             muscle_groups = list(result.scalars().all())
-            logger.debug(f"Retrieved {len(muscle_groups)} muscle groups.")
+            logger.debug(f"Получено {len(muscle_groups)} групп мышц.")
             return muscle_groups
         except SQLAlchemyError as e:
             logger.error(
@@ -151,7 +151,7 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_all_muscle_groups: {e}", exc_info=True
+                f"Неожиданная ошибка в get_all_muscle_groups: {e}", exc_info=True
             )
             raise
 
@@ -167,7 +167,7 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             return muscle_group
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_muscle_group_by_id for group {item_id}: {e}",
+                f"SQLAlchemyError в get_muscle_group_by_id для группы {item_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -184,19 +184,19 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             await self.session.commit()
             await self.session.refresh(muscle_group)
             logger.info(
-                f"Added new muscle group {muscle_group.id} ({muscle_group.name})."
+                f"Добавлена новая группа мышц {muscle_group.id} ({muscle_group.name})."
             )
             return muscle_group
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in add_muscle_group {muscle_group.name}: {e}",
+                f"SQLAlchemyError при добавлении группы мышц {muscle_group.name}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in add_muscle_group {muscle_group.name}: {e}",
+                f"Неожиданная ошибка при добавлении группы мышц {muscle_group.name}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()

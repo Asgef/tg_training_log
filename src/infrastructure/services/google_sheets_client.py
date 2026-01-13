@@ -15,9 +15,9 @@ class GoogleSheetsClient:
         try:
             creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
             if not creds_json:
-                logger.error("GOOGLE_CREDENTIALS_JSON environment variable not set.")
+                logger.error("Переменная окружения GOOGLE_CREDENTIALS_JSON не установлена.")
                 raise ValueError(
-                    "GOOGLE_CREDENTIALS_JSON environment variable not set."
+                    "Переменная окружения GOOGLE_CREDENTIALS_JSON не установлена."
                 )
 
             creds_info = json.loads(creds_json)
@@ -29,26 +29,26 @@ class GoogleSheetsClient:
                 creds_info, scopes=scopes
             )
             self.gc = gspread.authorize(self.credentials)
-            logger.info("GoogleSheetsClient initialized successfully.")
+            logger.info("GoogleSheetsClient успешно инициализирован.")
         except Exception as e:
             logger.critical(
-                f"Failed to initialize GoogleSheetsClient: {e}", exc_info=True
+                f"Не удалось инициализировать GoogleSheetsClient: {e}", exc_info=True
             )
-            raise RuntimeError(f"Failed to initialize GoogleSheetsClient: {e}")
+            raise RuntimeError(f"Не удалось инициализировать GoogleSheetsClient: {e}")
 
     def open_spreadsheet(self, spreadsheet_id: str):
         try:
             spreadsheet = self.gc.open_by_key(spreadsheet_id)
-            logger.debug(f"Opened Google Spreadsheet with ID: {spreadsheet_id}")
+            logger.debug(f"Открыта Google таблица с ID: {spreadsheet_id}")
             return spreadsheet
         except gspread.exceptions.SpreadsheetNotFound:
-            logger.warning(f"Spreadsheet with ID '{spreadsheet_id}' not found.")
-            raise ValueError(f"Spreadsheet with ID '{spreadsheet_id}' not found.")
+            logger.warning(f"Таблица с ID '{spreadsheet_id}' не найдена.")
+            raise ValueError(f"Таблица с ID '{spreadsheet_id}' не найдена.")
         except Exception as e:
             logger.error(
-                f"Error opening spreadsheet {spreadsheet_id}: {e}", exc_info=True
+                f"Ошибка при открытии таблицы {spreadsheet_id}: {e}", exc_info=True
             )
-            raise RuntimeError(f"Error opening spreadsheet {spreadsheet_id}: {e}")
+            raise RuntimeError(f"Ошибка при открытии таблицы {spreadsheet_id}: {e}")
 
     def get_or_create_worksheet(
         self, spreadsheet, worksheet_name: str, headers: List[str]
@@ -57,23 +57,23 @@ class GoogleSheetsClient:
             worksheet = spreadsheet.worksheet(worksheet_name)
             if not worksheet.row_values(1):
                 worksheet.insert_row(headers, 1)
-                logger.info(f"Created headers in worksheet '{worksheet_name}'.")
-            logger.debug(f"Retrieved/Created worksheet '{worksheet_name}'.")
+                logger.info(f"Созданы заголовки в листе '{worksheet_name}'.")
+            logger.debug(f"Получен/Создан лист '{worksheet_name}'.")
             return worksheet
         except gspread.exceptions.WorksheetNotFound:
             worksheet = spreadsheet.add_worksheet(
                 title=worksheet_name, rows=1, cols=len(headers)
             )
             worksheet.insert_row(headers, 1)
-            logger.info(f"Worksheet '{worksheet_name}' created with headers.")
+            logger.info(f"Лист '{worksheet_name}' создан с заголовками.")
             return worksheet
         except Exception as e:
             logger.error(
-                f"Error getting/creating worksheet '{worksheet_name}': {e}",
+                f"Ошибка при получении/создании листа '{worksheet_name}': {e}",
                 exc_info=True,
             )
             raise RuntimeError(
-                f"Error getting/creating worksheet '{worksheet_name}': {e}"
+                f"Ошибка при получении/создании листа '{worksheet_name}': {e}"
             )
 
     def append_data(
@@ -90,11 +90,11 @@ class GoogleSheetsClient:
             )
             worksheet.append_rows(data)
             logger.info(
-                f"Appended {len(data)} rows to '{worksheet_name}' in spreadsheet {spreadsheet_id}."
+                f"Добавлено {len(data)} строк в '{worksheet_name}' в таблице {spreadsheet_id}."
             )
         except Exception as e:
             logger.error(
-                f"Error appending data to '{worksheet_name}' in spreadsheet {spreadsheet_id}: {e}",
+                f"Ошибка при добавлении данных в '{worksheet_name}' в таблице {spreadsheet_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -139,17 +139,17 @@ class GoogleSheetsClient:
                     [merged_df.columns.values.tolist()] + merged_df.values.tolist()
                 )
                 logger.info(
-                    f"Upserted {len(df)} rows to '{worksheet_name}' in spreadsheet {spreadsheet_id} using key '{key_column}'."
+                    f"Обновлено/добавлено {len(df)} строк в '{worksheet_name}' в таблице {spreadsheet_id} с ключом '{key_column}'."
                 )
 
             else:
                 worksheet.update([df.columns.values.tolist()] + df.values.tolist())
                 logger.info(
-                    f"Wrote {len(df)} new rows to '{worksheet_name}' in spreadsheet {spreadsheet_id}."
+                    f"Записано {len(df)} новых строк в '{worksheet_name}' в таблице {spreadsheet_id}."
                 )
         except Exception as e:
             logger.error(
-                f"Error upserting dataframe to '{worksheet_name}' in spreadsheet {spreadsheet_id}: {e}",
+                f"Ошибка при обновлении/добавлении dataframe в '{worksheet_name}' в таблице {spreadsheet_id}: {e}",
                 exc_info=True,
             )
             raise

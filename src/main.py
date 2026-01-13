@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Import modules from our project
+# Импорт модулей проекта
 from src.configs.logging_config import setup_logging
 from src.infrastructure.db.base import get_session
 from src.infrastructure.db.repositories.user_repository import UserRepository
@@ -25,14 +25,14 @@ from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
 from src.infrastructure.web.handlers import registration, workout, machine, common
 from src.infrastructure.web.middlewares import RegistrationCheckMiddleware
 
-# Load environment variables
+# Загрузка переменных окружения
 load_dotenv()
 
-# Setup logging
+# Настройка логирования
 setup_logging()
 logger = logging.getLogger(__name__)
 
-# Global instances (simplified DI for now)
+# Глобальные экземпляры (упрощённая DI пока)
 user_repo_instance: UserRepository = None  # type: ignore
 registration_use_case_instance: RegistrationUseCase = None  # type: ignore
 workout_session_repo_instance: WorkoutSessionRepository = None  # type: ignore
@@ -46,14 +46,14 @@ google_sheets_export_use_case_instance: GoogleSheetsExportUseCase = None  # type
 
 
 async def main() -> None:
-    # Initialize Storage for FSM
+    # Инициализация хранилища для FSM
     storage = MemoryStorage()
 
-    # Initialize Bot and Dispatcher
+    # Инициализация бота и диспетчера
     bot = Bot(os.getenv("BOT_TOKEN"), parse_mode=ParseMode.HTML)
     dp = Dispatcher(storage=storage)
 
-    # --- Dependency Injection Setup (simplified) ---
+    # --- Настройка Dependency Injection (упрощённая) ---
     async for session in get_session():
         global user_repo_instance
         global registration_use_case_instance
@@ -75,12 +75,12 @@ async def main() -> None:
         try:
             google_sheets_client_instance = (
                 GoogleSheetsClient()
-            )  # GoogleSheetsClient does not depend on session
+            )  # GoogleSheetsClient не зависит от сессии
         except RuntimeError as e:
             logger.error(
-                f"Failed to initialize GoogleSheetsClient: {e}. Google Sheets functionality will be disabled."
+                f"Не удалось инициализировать GoogleSheetsClient: {e}. Функциональность Google Sheets будет отключена."
             )
-            google_sheets_client_instance = None  # Disable it if initialization fails
+            google_sheets_client_instance = None  # Отключить, если инициализация не удалась
 
         registration_use_case_instance = RegistrationUseCase(user_repo_instance)
         workout_use_case_instance = WorkoutUseCase(
@@ -97,7 +97,7 @@ async def main() -> None:
         )
         break
 
-    # Inject into handlers and middlewares directly for now
+    # Прямая инъекция в хэндлеры и middleware пока
     registration.user_repository = user_repo_instance
     registration.registration_use_case = registration_use_case_instance
     workout.workout_use_case = workout_use_case_instance
@@ -106,17 +106,17 @@ async def main() -> None:
     common.google_sheets_export_use_case = google_sheets_export_use_case_instance
     RegistrationCheckMiddleware.user_repository = user_repo_instance
 
-    # Register middlewares
+    # Регистрация middleware
     dp.message.middleware(RegistrationCheckMiddleware())
     dp.callback_query.middleware(RegistrationCheckMiddleware())
 
-    # Register routers
+    # Регистрация роутеров
     dp.include_router(registration.router)
     dp.include_router(workout.router)
     dp.include_router(machine.router)
-    dp.include_router(common.router)  # Register common router
+    dp.include_router(common.router)  # Регистрация общего роутера
 
-    logger.info("Bot started polling")
+    logger.info("Бот начал polling")
     await dp.start_polling(bot)
 
 
@@ -124,6 +124,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
+        logger.info("Бот остановлен пользователем")
     except Exception as e:
-        logger.exception(f"Bot encountered an error: {e}")
+        logger.exception(f"Бот столкнулся с ошибкой: {e}")

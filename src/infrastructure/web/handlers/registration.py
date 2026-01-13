@@ -25,13 +25,13 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         user = await user_repository.get_by_telegram_id(user_telegram_id)
 
         if user and user.is_registered:
-            logger.info(f"User {user_telegram_id} is already registered and used /start.")
+            logger.info(f"Пользователь {user_telegram_id} уже зарегистрирован и использовал /start.")
             await message.answer(f"С возвращением, {message.from_user.full_name}! Вы уже зарегистрированы.")
         elif user and not user.is_registered:
-            logger.info(f"User {user_telegram_id} is awaiting admin approval and used /start.")
+            logger.info(f"Пользователь {user_telegram_id} ожидает одобрения администратора и использовал /start.")
             await message.answer("Ваш запрос на регистрацию ожидает одобрения администратором.")
         else:
-            logger.info(f"New user {user_telegram_id} used /start. Prompting for registration.")
+            logger.info(f"Новый пользователь {user_telegram_id} использовал /start. Запрос на регистрацию.")
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Зарегистрироваться", callback_data="register_request")]
             ])
@@ -40,19 +40,19 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
                 reply_markup=keyboard
             )
     except Exception as e:
-        logger.error(f"Error in cmd_start for user {message.from_user.id}: {e}", exc_info=True)
+        logger.error(f"Ошибка в cmd_start для пользователя {message.from_user.id}: {e}", exc_info=True)
         await message.answer("Произошла ошибка при обработке команды /start.")
 
 
 @router.callback_query(F.data == "register_request")
 async def process_register_request(callback: CallbackQuery, state: FSMContext) -> None:
     try:
-        logger.info(f"User {callback.from_user.id} initiated registration request.")
+        logger.info(f"Пользователь {callback.from_user.id} инициировал запрос на регистрацию.")
         await callback.message.edit_text("Пожалуйста, расскажите немного о себе, чтобы администратор мог одобрить вашу заявку.")
         await state.set_state(RegistrationStates.waiting_for_description)
         await callback.answer()
     except Exception as e:
-        logger.error(f"Error in process_register_request for user {callback.from_user.id}: {e}", exc_info=True)
+        logger.error(f"Ошибка в process_register_request для пользователя {callback.from_user.id}: {e}", exc_info=True)
         await callback.message.answer("Произошла ошибка при начале регистрации.")
         await callback.answer()
 
@@ -66,7 +66,7 @@ async def process_description(message: Message, state: FSMContext, bot: Bot) -> 
         last_name = message.from_user.last_name if message.from_user.last_name else ""
         description = message.text
 
-        logger.info(f"User {user_id} submitted registration description.")
+        logger.info(f"Пользователь {user_id} отправил описание для регистрации.")
         success = await registration_use_case.request_registration(user_id, username, first_name, last_name, description)
 
         if success:
@@ -84,15 +84,15 @@ async def process_description(message: Message, state: FSMContext, bot: Bot) -> 
                         text=f"Новый запрос на регистрацию от @{username} ({first_name} {last_name}, ID: {user_id}).\nОписание: {description}",
                         reply_markup=admin_keyboard
                     )
-                    logger.info(f"Notified admin {admin_id} about new registration request from user {user_id}.")
+                    logger.info(f"Администратор {admin_id} уведомлён о новом запросе на регистрацию от пользователя {user_id}.")
                 except Exception as e:
-                    logger.error(f"Failed to notify admin {admin_id} about user {user_id} registration: {e}", exc_info=True)
+                    logger.error(f"Не удалось уведомить администратора {admin_id} о регистрации пользователя {user_id}: {e}", exc_info=True)
         else:
             await message.answer("Ошибка при отправке запроса на регистрацию. Возможно, вы уже отправляли запрос.")
-            logger.warning(f"Registration request for user {user_id} failed, possibly duplicate.")
+            logger.warning(f"Запрос на регистрацию для пользователя {user_id} не удался, возможно дубликат.")
 
     except Exception as e:
-        logger.error(f"Error in process_description for user {message.from_user.id}: {e}", exc_info=True)
+        logger.error(f"Ошибка в process_description для пользователя {message.from_user.id}: {e}", exc_info=True)
         await message.answer("Произошла ошибка при обработке вашего описания.")
     finally:
         await state.clear()
@@ -102,28 +102,28 @@ async def process_description(message: Message, state: FSMContext, bot: Bot) -> 
 async def admin_approve_request(callback: CallbackQuery, bot: Bot) -> None:
     try:
         if callback.from_user.id not in ADMIN_IDS:
-            logger.warning(f"Non-admin user {callback.from_user.id} tried to approve registration.")
+            logger.warning(f"Не-администратор {callback.from_user.id} попытался одобрить регистрацию.")
             await callback.answer("У вас нет прав для выполнения этой операции.", show_alert=True)
             return
 
         user_id_str = callback.data.split('_')[-1]
         user_id = int(user_id_str)
 
-        logger.info(f"Admin {callback.from_user.id} attempting to approve registration for user {user_id}.")
+        logger.info(f"Администратор {callback.from_user.id} пытается одобрить регистрацию для пользователя {user_id}.")
         success = await registration_use_case.approve_registration(user_id)
 
         if success:
             await callback.message.edit_text(f"Запрос от пользователя {user_id} одобрен.")
             try:
                 await bot.send_message(chat_id=user_id, text="Ваша регистрация одобрена! Теперь вы можете пользоваться ботом.")
-                logger.info(f"Notified user {user_id} about approved registration.")
+                logger.info(f"Пользователь {user_id} уведомлён об одобренной регистрации.")
             except Exception as e:
-                logger.error(f"Failed to notify user {user_id} about approved registration: {e}", exc_info=True)
+                logger.error(f"Не удалось уведомить пользователя {user_id} об одобренной регистрации: {e}", exc_info=True)
         else:
             await callback.message.edit_text(f"Ошибка при одобрении запроса от пользователя {user_id}. Возможно, он уже зарегистрирован или запрос не найден.")
-            logger.warning(f"Admin failed to approve registration for user {user_id}.")
+            logger.warning(f"Администратор не смог одобрить регистрацию для пользователя {user_id}.")
     except Exception as e:
-        logger.error(f"Error in admin_approve_request for admin {callback.from_user.id}, target user {user_id_str}: {e}", exc_info=True)
+        logger.error(f"Ошибка в admin_approve_request для администратора {callback.from_user.id}, целевой пользователь {user_id_str}: {e}", exc_info=True)
         await callback.message.answer("Произошла ошибка при одобрении запроса.")
     finally:
         await callback.answer()
@@ -133,28 +133,28 @@ async def admin_approve_request(callback: CallbackQuery, bot: Bot) -> None:
 async def admin_reject_request(callback: CallbackQuery, bot: Bot) -> None:
     try:
         if callback.from_user.id not in ADMIN_IDS:
-            logger.warning(f"Non-admin user {callback.from_user.id} tried to reject registration.")
+            logger.warning(f"Не-администратор {callback.from_user.id} попытался отклонить регистрацию.")
             await callback.answer("У вас нет прав для выполнения этой операции.", show_alert=True)
             return
 
         user_id_str = callback.data.split('_')[-1]
         user_id = int(user_id_str)
 
-        logger.info(f"Admin {callback.from_user.id} attempting to reject registration for user {user_id}.")
+        logger.info(f"Администратор {callback.from_user.id} пытается отклонить регистрацию для пользователя {user_id}.")
         success = await registration_use_case.reject_registration(user_id)
 
         if success:
             await callback.message.edit_text(f"Запрос от пользователя {user_id} отклонен.")
             try:
                 await bot.send_message(chat_id=user_id, text="Ваша регистрация отклонена.")
-                logger.info(f"Notified user {user_id} about rejected registration.")
+                logger.info(f"Пользователь {user_id} уведомлён об отклонённой регистрации.")
             except Exception as e:
-                logger.error(f"Failed to notify user {user_id} about rejected registration: {e}", exc_info=True)
+                logger.error(f"Не удалось уведомить пользователя {user_id} об отклонённой регистрации: {e}", exc_info=True)
         else:
             await callback.message.edit_text(f"Ошибка при отклонении запроса от пользователя {user_id}. Возможно, запрос уже обработан или не найден.")
-            logger.warning(f"Admin failed to reject registration for user {user_id}.")
+            logger.warning(f"Администратор не смог отклонить регистрацию для пользователя {user_id}.")
     except Exception as e:
-        logger.error(f"Error in admin_reject_request for admin {callback.from_user.id}, target user {user_id_str}: {e}", exc_info=True)
+        logger.error(f"Ошибка в admin_reject_request для администратора {callback.from_user.id}, целевой пользователь {user_id_str}: {e}", exc_info=True)
         await callback.message.answer("Произошла ошибка при отклонении запроса.")
     finally:
         await callback.answer()

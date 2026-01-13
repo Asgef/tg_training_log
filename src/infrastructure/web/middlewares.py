@@ -10,7 +10,7 @@ from aiogram.types import (
 
 from src.application.repositories import IUserRepository
 
-# Dependency injection placeholder
+# Заглушка для dependency injection
 user_repository: IUserRepository = None  # type: ignore
 
 
@@ -22,11 +22,11 @@ class RegistrationCheckMiddleware(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
         if user_repository is None:
-            raise ValueError("UserRepository is not initialized in middleware")
+            raise ValueError("UserRepository не инициализирован в middleware")
 
         user_id = event.from_user.id
 
-        # Allow /start command and registration related callbacks/messages to pass through
+        # Разрешить команду /start и связанные с регистрацией callback/сообщения
         if isinstance(event, Message) and (
             event.text == "/start"
             or data.get("fsm_state") == "RegistrationStates:waiting_for_description"

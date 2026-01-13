@@ -26,19 +26,19 @@ class MachineRepository(IMachineRepository):
             result = await self.session.execute(stmt)
             machine = result.scalar_one_or_none()
             if machine:
-                logger.debug(f"Retrieved machine {item_id}.")
+                logger.debug(f"Получен тренажёр {item_id}.")
             else:
-                logger.debug(f"Machine {item_id} not found.")
+                logger.debug(f"Тренажёр {item_id} не найден.")
             return machine
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_by_id for machine {item_id}: {e}",
+                f"SQLAlchemyError в get_by_id для тренажёра {item_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_by_id for machine {item_id}: {e}",
+                f"Неожиданная ошибка в get_by_id для тренажёра {item_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -48,18 +48,18 @@ class MachineRepository(IMachineRepository):
             self.session.add(machine)
             await self.session.commit()
             await self.session.refresh(machine)
-            logger.info(f"Added new machine {machine.id} for user {machine.user_id}.")
+            logger.info(f"Добавлен новый тренажёр {machine.id} для пользователя {machine.user_id}.")
             return machine
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in add machine for user {machine.user_id}: {e}",
+                f"SQLAlchemyError при добавлении тренажёра для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in add machine for user {machine.user_id}: {e}",
+                f"Неожиданная ошибка при добавлении тренажёра для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -69,17 +69,17 @@ class MachineRepository(IMachineRepository):
         try:
             await self.session.commit()
             await self.session.refresh(machine)
-            logger.info(f"Updated machine {machine.id}.")
+            logger.info(f"Обновлён тренажёр {machine.id}.")
             return machine
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in update machine {machine.id}: {e}", exc_info=True
+                f"SQLAlchemyError при обновлении тренажёра {machine.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in update machine {machine.id}: {e}", exc_info=True
+                f"Неожиданная ошибка при обновлении тренажёра {machine.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -90,18 +90,18 @@ class MachineRepository(IMachineRepository):
             if machine:
                 await self.session.delete(machine)
                 await self.session.commit()
-                logger.info(f"Deleted machine {item_id}.")
+                logger.info(f"Удалён тренажёр {item_id}.")
             else:
-                logger.warning(f"Attempted to delete non-existent machine {item_id}.")
+                logger.warning(f"Попытка удалить несуществующий тренажёр {item_id}.")
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in delete machine {item_id}: {e}", exc_info=True
+                f"SQLAlchemyError при удалении тренажёра {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in delete machine {item_id}: {e}", exc_info=True
+                f"Неожиданная ошибка при удалении тренажёра {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -116,17 +116,17 @@ class MachineRepository(IMachineRepository):
             stmt = stmt.options(selectinload(Machine.muscles))
             result = await self.session.execute(stmt)
             machines = list(result.scalars().all())
-            logger.debug(f"Retrieved {len(machines)} machines for user {user_id}.")
+            logger.debug(f"Получено {len(machines)} тренажёров для пользователя {user_id}.")
             return machines
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_user_machines for user {user_id}: {e}",
+                f"SQLAlchemyError в get_user_machines для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_user_machines for user {user_id}: {e}",
+                f"Неожиданная ошибка в get_user_machines для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -143,19 +143,19 @@ class MachineRepository(IMachineRepository):
             result = await self.session.execute(stmt)
             machine = result.scalar_one_or_none()
             if machine:
-                logger.debug(f"Retrieved machine by name '{name}' for user {user_id}.")
+                logger.debug(f"Получен тренажёр по имени '{name}' для пользователя {user_id}.")
             else:
-                logger.debug(f"Machine by name '{name}' for user {user_id} not found.")
+                logger.debug(f"Тренажёр по имени '{name}' для пользователя {user_id} не найден.")
             return machine
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_user_machine_by_name for user {user_id}, name '{name}': {e}",
+                f"SQLAlchemyError в get_user_machine_by_name для пользователя {user_id}, имя '{name}': {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_user_machine_by_name for user {user_id}, name '{name}': {e}",
+                f"Неожиданная ошибка в get_user_machine_by_name для пользователя {user_id}, имя '{name}': {e}",
                 exc_info=True,
             )
             raise
@@ -176,19 +176,19 @@ class MachineRepository(IMachineRepository):
             await self.session.commit()
             await self.session.refresh(machine)
             logger.info(
-                f"Added new machine {machine.id} with muscles {muscle_ids} for user {machine.user_id}."
+                f"Добавлен новый тренажёр {machine.id} с мышцами {muscle_ids} для пользователя {machine.user_id}."
             )
             return machine
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in add_machine_with_muscles for user {machine.user_id}: {e}",
+                f"SQLAlchemyError при добавлении тренажёра с мышцами для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in add_machine_with_muscles for user {machine.user_id}: {e}",
+                f"Неожиданная ошибка при добавлении тренажёра с мышцами для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()

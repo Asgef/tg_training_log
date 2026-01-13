@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Any
 
-# Import domain models
+# Импорт доменных моделей
 from src.domain.models import (
     User,
     Machine,
@@ -34,7 +34,7 @@ class IUserRepository(BaseRepository):
     @abstractmethod
     async def get_by_telegram_id(
         self, telegram_id: int
-    ) -> Optional["User"]:  # Forward reference
+    ) -> Optional["User"]:  # Прямая ссылка
         pass
 
     @abstractmethod

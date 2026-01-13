@@ -22,7 +22,7 @@ class RegistrationUseCase(IRegistrationUseCase):
             existing_user = await self.user_repository.get_by_telegram_id(telegram_id)
             if existing_user:
                 logger.info(
-                    f"Registration request for existing user {telegram_id}. Skipping."
+                    f"Запрос на регистрацию для существующего пользователя {telegram_id}. Пропуск."
                 )
                 return False
 
@@ -34,10 +34,10 @@ class RegistrationUseCase(IRegistrationUseCase):
                 is_registered=False,
             )
             await self.user_repository.add(new_user)
-            logger.info(f"User {telegram_id} requested registration successfully.")
+            logger.info(f"Пользователь {telegram_id} успешно отправил запрос на регистрацию.")
             return True
         except Exception as e:
-            logger.error(f"Error requesting registration for user {telegram_id}: {e}")
+            logger.error(f"Ошибка при запросе регистрации для пользователя {telegram_id}: {e}")
             return False
 
     async def approve_registration(self, user_id: int) -> bool:
@@ -46,14 +46,14 @@ class RegistrationUseCase(IRegistrationUseCase):
             if user and not user.is_registered:
                 user.is_registered = True
                 await self.user_repository.update(user)
-                logger.info(f"User {user_id} registration approved.")
+                logger.info(f"Регистрация пользователя {user_id} одобрена.")
                 return True
             logger.warning(
-                f"Failed to approve registration for user {user_id}: User not found or already registered."
+                f"Не удалось одобрить регистрацию для пользователя {user_id}: Пользователь не найден или уже зарегистрирован."
             )
             return False
         except Exception as e:
-            logger.error(f"Error approving registration for user {user_id}: {e}")
+            logger.error(f"Ошибка при одобрении регистрации для пользователя {user_id}: {e}")
             return False
 
     async def reject_registration(self, user_id: int) -> bool:
@@ -61,12 +61,12 @@ class RegistrationUseCase(IRegistrationUseCase):
             user = await self.user_repository.get_by_id(user_id)
             if user and not user.is_registered:
                 await self.user_repository.delete(user_id)
-                logger.info(f"User {user_id} registration rejected and entry deleted.")
+                logger.info(f"Регистрация пользователя {user_id} отклонена и запись удалена.")
                 return True
             logger.warning(
-                f"Failed to reject registration for user {user_id}: User not found or already registered."
+                f"Не удалось отклонить регистрацию для пользователя {user_id}: Пользователь не найден или уже зарегистрирован."
             )
             return False
         except Exception as e:
-            logger.error(f"Error rejecting registration for user {user_id}: {e}")
+            logger.error(f"Ошибка при отклонении регистрации для пользователя {user_id}: {e}")
             return False

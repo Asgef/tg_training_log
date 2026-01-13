@@ -1,0 +1,9 @@
+BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/mydatabase
+ADMIN_ID=YOUR_TELEGRAM_ADMIN_ID # Separate multiple IDs with commas, e.g., 12345,67890
+GOOGLE_CREDENTIALS_JSON='{"type": "service_account", "project_id": "...", "private_key_id": "...", "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n", "client_email": "...", "client_id": "...", "auth_uri": "...", "token_uri": "...", "auth_provider_x509_cert_url": "...", "client_x509_cert_url": "...", "universe_domain": "..."}'
+
+# PostgreSQL variables for docker-compose.yml
+POSTGRES_DB=mydatabase
+POSTGRES_USER=user
+POSTGRES_PASSWORD=password

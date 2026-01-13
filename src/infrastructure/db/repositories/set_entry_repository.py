@@ -21,9 +21,9 @@ class SetEntryRepository(ISetEntryRepository):
             result = await self.session.execute(stmt)
             set_entry = result.scalar_one_or_none()
             if set_entry:
-                logger.debug(f"Retrieved set entry {item_id}.")
+                logger.debug(f"Получен подход {item_id}.")
             else:
-                logger.debug(f"Set entry {item_id} not found.")
+                logger.debug(f"Подход {item_id} не найден.")
             return set_entry
         except SQLAlchemyError as e:
             logger.error(
@@ -33,7 +33,7 @@ class SetEntryRepository(ISetEntryRepository):
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_by_id for set entry {item_id}: {e}",
+                f"Неожиданная ошибка в get_by_id для подхода {item_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -44,19 +44,19 @@ class SetEntryRepository(ISetEntryRepository):
             await self.session.commit()
             await self.session.refresh(set_entry)
             logger.info(
-                f"Added new set entry {set_entry.id} for session {set_entry.session_id}."
+                f"Добавлен новый подход {set_entry.id} для сессии {set_entry.session_id}."
             )
             return set_entry
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in add set entry for session {set_entry.session_id}: {e}",
+                f"SQLAlchemyError при добавлении подхода для сессии {set_entry.session_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in add set entry for session {set_entry.session_id}: {e}",
+                f"Неожиданная ошибка при добавлении подхода для сессии {set_entry.session_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -66,7 +66,7 @@ class SetEntryRepository(ISetEntryRepository):
         try:
             await self.session.commit()
             await self.session.refresh(set_entry)
-            logger.info(f"Updated set entry {set_entry.id}.")
+            logger.info(f"Обновлён подход {set_entry.id}.")
             return set_entry
         except SQLAlchemyError as e:
             logger.error(
@@ -77,7 +77,7 @@ class SetEntryRepository(ISetEntryRepository):
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in update set entry {set_entry.id}: {e}",
+                f"Неожиданная ошибка при обновлении подхода {set_entry.id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -94,17 +94,17 @@ class SetEntryRepository(ISetEntryRepository):
                 logger.warning(f"Attempted to delete non-existent set entry {item_id}.")
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in delete set entry {item_id}: {e}", exc_info=True
+                f"SQLAlchemyError при удалении подхода {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in delete set entry {item_id}: {e}", exc_info=True
+                f"Неожиданная ошибка при удалении подхода {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
 
     async def add_set_entry(self, set_entry: SetEntry) -> SetEntry:
-        # This method is redundant with add(), but required by interface
+        # Этот метод избыточен с add(), но требуется интерфейсом
         return await self.add(set_entry)

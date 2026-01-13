@@ -22,19 +22,19 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             result = await self.session.execute(stmt)
             session = result.scalar_one_or_none()
             if session:
-                logger.debug(f"Retrieved workout session {item_id}.")
+                logger.debug(f"Получена тренировка {item_id}.")
             else:
-                logger.debug(f"Workout session {item_id} not found.")
+                logger.debug(f"Тренировка {item_id} не найдена.")
             return session
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_by_id for session {item_id}: {e}",
+                f"SQLAlchemyError в get_by_id для тренировки {item_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_by_id for session {item_id}: {e}",
+                f"Неожиданная ошибка в get_by_id для тренировки {item_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -45,19 +45,19 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             await self.session.commit()
             await self.session.refresh(session)
             logger.info(
-                f"Added new workout session {session.id} for user {session.user_id}."
+                f"Добавлена новая тренировка {session.id} для пользователя {session.user_id}."
             )
             return session
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in add workout session for user {session.user_id}: {e}",
+                f"SQLAlchemyError при добавлении тренировки для пользователя {session.user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in add workout session for user {session.user_id}: {e}",
+                f"Неожиданная ошибка при добавлении тренировки для пользователя {session.user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -67,18 +67,18 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
         try:
             await self.session.commit()
             await self.session.refresh(session)
-            logger.info(f"Updated workout session {session.id}.")
+            logger.info(f"Обновлена тренировка {session.id}.")
             return session
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in update workout session {session.id}: {e}",
+                f"SQLAlchemyError при обновлении тренировки {session.id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in update workout session {session.id}: {e}",
+                f"Неожиданная ошибка при обновлении тренировки {session.id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -90,21 +90,21 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             if session:
                 await self.session.delete(session)
                 await self.session.commit()
-                logger.info(f"Deleted workout session {item_id}.")
+                logger.info(f"Удалена тренировка {item_id}.")
             else:
                 logger.warning(
-                    f"Attempted to delete non-existent workout session {item_id}."
+                    f"Попытка удалить несуществующую тренировку {item_id}."
                 )
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in delete workout session {item_id}: {e}",
+                f"SQLAlchemyError при удалении тренировки {item_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in delete workout session {item_id}: {e}",
+                f"Неожиданная ошибка при удалении тренировки {item_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -124,17 +124,17 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
                     f"Retrieved active session {session.id} for user {user_id}."
                 )
             else:
-                logger.debug(f"No active session found for user {user_id}.")
+                logger.debug(f"Активная сессия для пользователя {user_id} не найдена.")
             return session
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_active_session_for_user {user_id}: {e}",
+                f"SQLAlchemyError в get_active_session_for_user для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_active_session_for_user {user_id}: {e}",
+                f"Неожиданная ошибка в get_active_session_for_user для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -151,14 +151,14 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             return new_session
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in start_session for user {user_id}: {e}",
+                f"SQLAlchemyError в start_session для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in start_session for user {user_id}: {e}",
+                f"Неожиданная ошибка в start_session для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
@@ -176,14 +176,14 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             logger.info(f"Ended workout session {session_id}.")
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in end_session for session {session_id}: {e}",
+                f"SQLAlchemyError в end_session для тренировки {session_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in end_session for session {session_id}: {e}",
+                f"Неожиданная ошибка в end_session для тренировки {session_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()

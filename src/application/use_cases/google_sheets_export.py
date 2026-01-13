@@ -32,9 +32,9 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             parsed_url = urlparse(sheet_url)
             if "docs.google.com" not in parsed_url.netloc:
                 logger.warning(
-                    f"User {user_id} provided invalid Google Sheets URL: {sheet_url}"
+                    f"Пользователь {user_id} предоставил неверный URL Google Sheets: {sheet_url}"
                 )
-                raise ValueError("Provided URL is not a valid Google Sheets URL.")
+                raise ValueError("Предоставленный URL не является валидным URL Google Sheets.")
 
             path_parts = parsed_url.path.split("/")
             if "d" in path_parts:
@@ -42,12 +42,12 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                     spreadsheet_id = path_parts[path_parts.index("d") + 1]
                 except IndexError:
                     logger.warning(
-                        f"User {user_id} provided URL without detectable spreadsheet ID: {sheet_url}"
+                        f"Пользователь {user_id} предоставил URL без определяемого ID таблицы: {sheet_url}"
                     )
-                    raise ValueError("Could not extract spreadsheet ID from the URL.")
+                    raise ValueError("Не удалось извлечь ID таблицы из URL.")
             else:
                 logger.warning(
-                    f"User {user_id} provided URL without detectable spreadsheet ID: {sheet_url}"
+                    f"Пользователь {user_id} предоставил URL без определяемого ID таблицы: {sheet_url}"
                 )
                 raise ValueError("Could not extract spreadsheet ID from the URL.")
 
@@ -55,12 +55,12 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                 user_id, sheet_url, spreadsheet_id
             )
             logger.info(
-                f"User {user_id} successfully configured Google Sheets with ID: {spreadsheet_id}"
+                f"Пользователь {user_id} успешно настроил Google Sheets с ID: {spreadsheet_id}"
             )
             return True
         except Exception as e:
             logger.error(
-                f"Error setting up Google Sheets config for user {user_id}: {e}"
+                f"Ошибка при настройке конфигурации Google Sheets для пользователя {user_id}: {e}"
             )
             raise
 
@@ -69,11 +69,11 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             user = await self.user_repository.get_by_id(user_id)
             if not user or not user.spreadsheet_id:
                 logger.warning(
-                    f"User {user_id} tried to export data without configured Google Sheets."
+                    f"Пользователь {user_id} попытался экспортировать данные без настроенного Google Sheets."
                 )
-                raise ValueError("Google Sheets not configured for this user.")
+                raise ValueError("Google Sheets не настроен для этого пользователя.")
 
-            # Export Machines (upsert)
+            # Экспорт тренажёров (upsert)
             machines = await self.machine_repository.get_user_machines(
                 user_id, include_archived=True
             )
@@ -97,17 +97,17 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                     user.spreadsheet_id, "Machines", machines_df, "ID"
                 )
                 logger.info(
-                    f"User {user_id} successfully exported {len(machines)} machines to Google Sheet {user.spreadsheet_id}."
+                    f"Пользователь {user_id} успешно экспортировал {len(machines)} тренажёров в Google Sheet {user.spreadsheet_id}."
                 )
 
-            # Export Set Entries (append) - Placeholder
+            # Экспорт подходов (append) - Заглушка
             logger.info(
-                f"Set entries export for user {user_id} is pending implementation."
+                f"Экспорт подходов для пользователя {user_id} ожидает реализации."
             )
 
             return True
         except Exception as e:
             logger.error(
-                f"Error exporting data to Google Sheets for user {user_id}: {e}"
+                f"Ошибка при экспорте данных в Google Sheets для пользователя {user_id}: {e}"
             )
             raise

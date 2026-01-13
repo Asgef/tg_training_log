@@ -25,15 +25,15 @@ class WorkoutUseCase(IWorkoutUseCase):
             )
             if active_session:
                 logger.info(
-                    f"User {user_id} tried to start new workout but already has an active session."
+                    f"Пользователь {user_id} попытался начать новую тренировку, но уже имеет активную сессию."
                 )
                 return None
 
             new_session = await self.workout_session_repository.start_session(user_id)
-            logger.info(f"User {user_id} started new workout session {new_session.id}.")
+            logger.info(f"Пользователь {user_id} начал новую тренировку {new_session.id}.")
             return new_session
         except Exception as e:
-            logger.error(f"Error starting new workout for user {user_id}: {e}")
+            logger.error(f"Ошибка при начале новой тренировки для пользователя {user_id}: {e}")
             return None
 
     async def end_current_workout(self, user_id: int) -> Optional[WorkoutSession]:
@@ -45,7 +45,7 @@ class WorkoutUseCase(IWorkoutUseCase):
             )
             if not active_session:
                 logger.info(
-                    f"User {user_id} tried to end workout but has no active session."
+                    f"Пользователь {user_id} попытался завершить тренировку, но не имеет активной сессии."
                 )
                 return None
 
@@ -53,10 +53,10 @@ class WorkoutUseCase(IWorkoutUseCase):
             ended_session = await self.workout_session_repository.get_by_id(
                 active_session.id
             )
-            logger.info(f"User {user_id} ended workout session {active_session.id}.")
+            logger.info(f"Пользователь {user_id} завершил тренировку {active_session.id}.")
             return ended_session
         except Exception as e:
-            logger.error(f"Error ending workout for user {user_id}: {e}")
+            logger.error(f"Ошибка при завершении тренировки для пользователя {user_id}: {e}")
             return None
 
     async def record_set(
@@ -70,15 +70,15 @@ class WorkoutUseCase(IWorkoutUseCase):
             )
             if not active_session:
                 logger.warning(
-                    f"User {user_id} tried to record set but has no active session."
+                    f"Пользователь {user_id} попытался записать подход, но не имеет активной сессии."
                 )
                 return None
 
             if weight <= 0 or reps <= 0:
                 logger.warning(
-                    f"User {user_id} provided invalid set data: weight={weight}, reps={reps}."
+                    f"Пользователь {user_id} предоставил неверные данные подхода: вес={weight}, повторы={reps}."
                 )
-                raise ValueError("Weight and reps must be greater than 0")
+                raise ValueError("Вес и повторы должны быть больше 0")
 
             new_set_entry = SetEntry(
                 session_id=active_session.id,
@@ -89,11 +89,11 @@ class WorkoutUseCase(IWorkoutUseCase):
             )
             await self.set_entry_repository.add_set_entry(new_set_entry)
             logger.info(
-                f"User {user_id} recorded set {new_set_entry.id} for session {active_session.id}."
+                f"Пользователь {user_id} записал подход {new_set_entry.id} для сессии {active_session.id}."
             )
             return new_set_entry
         except Exception as e:
-            logger.error(f"Error recording set for user {user_id}: {e}")
+            logger.error(f"Ошибка при записи подхода для пользователя {user_id}: {e}")
             return None
 
     async def get_active_workout_session(
@@ -105,6 +105,6 @@ class WorkoutUseCase(IWorkoutUseCase):
             )
         except Exception as e:
             logger.error(
-                f"Error getting active workout session for user {user_id}: {e}"
+                f"Ошибка при получении активной тренировки для пользователя {user_id}: {e}"
             )
             return None

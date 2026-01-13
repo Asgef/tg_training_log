@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-# Import domain models
+# Импорт доменных моделей
 from src.domain.models import User, Machine, WorkoutSession, SetEntry
 
 
@@ -15,43 +15,43 @@ class IRegistrationUseCase(ABC):
         last_name: str,
         description: str,
     ) -> bool:
-        """Handles user's registration request."""
+        """Обрабатывает запрос на регистрацию пользователя."""
         pass
 
     @abstractmethod
     async def approve_registration(self, user_id: int) -> bool:
-        """Approves a user's registration."""
+        """Одобряет регистрацию пользователя."""
         pass
 
     @abstractmethod
     async def reject_registration(self, user_id: int) -> bool:
-        """Rejects a user's registration."""
+        """Отклоняет регистрацию пользователя."""
         pass
 
 
 class IWorkoutUseCase(ABC):
     @abstractmethod
     async def start_new_workout(self, user_id: int) -> Optional["WorkoutSession"]:
-        """Starts a new workout session for the user."""
+        """Начинает новую тренировку для пользователя."""
         pass
 
     @abstractmethod
     async def end_current_workout(self, user_id: int) -> Optional["WorkoutSession"]:
-        """Ends the user's current active workout session."""
+        """Завершает текущую активную тренировку пользователя."""
         pass
 
     @abstractmethod
     async def record_set(
         self, user_id: int, machine_id: int, weight: float, reps: int, failure: bool
     ) -> Optional["SetEntry"]:
-        """Records a set for the active workout session."""
+        """Записывает подход для активной тренировки."""
         pass
 
     @abstractmethod
     async def get_active_workout_session(
         self, user_id: int
     ) -> Optional["WorkoutSession"]:
-        """Retrieves the active workout session for a user."""
+        """Получает активную тренировку пользователя."""
         pass
 
 
@@ -64,19 +64,19 @@ class IMachineManagementUseCase(ABC):
         photo_file_id: Optional[str],
         muscle_ids: List[int],
     ) -> "Machine":
-        """Adds a new machine to the user's personal list."""
+        """Добавляет новый тренажёр в личный список пользователя."""
         pass
 
     @abstractmethod
     async def get_user_machines(self, user_id: int) -> List["Machine"]:
-        """Retrieves all machines for a user."""
+        """Получает все тренажёры пользователя."""
         pass
 
     @abstractmethod
     async def get_machine_details(
         self, user_id: int, machine_id: int
     ) -> Optional["Machine"]:
-        """Retrieves details of a specific machine for a user."""
+        """Получает детали конкретного тренажёра пользователя."""
         pass
 
     @abstractmethod
@@ -89,34 +89,34 @@ class IMachineManagementUseCase(ABC):
         muscle_ids: Optional[List[int]],
         is_archived: Optional[bool],
     ) -> Optional["Machine"]:
-        """Updates an existing machine."""
+        """Обновляет существующий тренажёр."""
         pass
 
     @abstractmethod
     async def archive_machine(self, user_id: int, machine_id: int) -> bool:
-        """Archives a machine, making it inactive for new sets."""
+        """Архивирует тренажёр, делая его неактивным для новых подходов."""
         pass
 
 
 class IGoogleSheetsExportUseCase(ABC):
     @abstractmethod
     async def setup_google_sheets_config(self, user_id: int, sheet_url: str) -> bool:
-        """Saves Google Sheet URL and ID for a user."""
+        """Сохраняет URL и ID Google Sheet для пользователя."""
         pass
 
     @abstractmethod
     async def export_data_to_sheets(self, user_id: int) -> bool:
-        """Exports workout and machine data to Google Sheets."""
+        """Экспортирует данные тренировок и тренажёров в Google Sheets."""
         pass
 
 
 class ISystemUseCase(ABC):
     @abstractmethod
     async def get_registered_users(self) -> List["User"]:
-        """Retrieves a list of all registered users."""
+        """Получает список всех зарегистрированных пользователей."""
         pass
 
     @abstractmethod
     async def check_user_registered(self, telegram_id: int) -> bool:
-        """Checks if a user is registered."""
+        """Проверяет, зарегистрирован ли пользователь."""
         pass

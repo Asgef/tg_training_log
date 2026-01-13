@@ -21,13 +21,13 @@ class UserRepository(IUserRepository):
             result = await self.session.execute(stmt)
             user = result.scalar_one_or_none()
             if user:
-                logger.debug(f"Retrieved user {item_id}.")
+                logger.debug(f"Получен пользователь {item_id}.")
             else:
-                logger.debug(f"User {item_id} not found.")
+                logger.debug(f"Пользователь {item_id} не найден.")
             return user
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_by_id for user {item_id}: {e}", exc_info=True
+                f"SQLAlchemyError в get_by_id для пользователя {item_id}: {e}", exc_info=True
             )
             raise
         except Exception as e:
@@ -41,14 +41,14 @@ class UserRepository(IUserRepository):
             self.session.add(user)
             await self.session.commit()
             await self.session.refresh(user)
-            logger.info(f"Added new user {user.id}.")
+            logger.info(f"Добавлен новый пользователь {user.id}.")
             return user
         except SQLAlchemyError as e:
             logger.error(f"SQLAlchemyError in add user {user.id}: {e}", exc_info=True)
             await self.session.rollback()
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in add user {user.id}: {e}", exc_info=True)
+            logger.error(f"Неожиданная ошибка при добавлении пользователя {user.id}: {e}", exc_info=True)
             await self.session.rollback()
             raise
 
@@ -60,13 +60,13 @@ class UserRepository(IUserRepository):
             return user
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in update user {user.id}: {e}", exc_info=True
+                f"SQLAlchemyError при обновлении пользователя {user.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in update user {user.id}: {e}", exc_info=True
+                f"Неожиданная ошибка при обновлении пользователя {user.id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -77,18 +77,18 @@ class UserRepository(IUserRepository):
             if user:
                 await self.session.delete(user)
                 await self.session.commit()
-                logger.info(f"Deleted user {item_id}.")
+                logger.info(f"Удалён пользователь {item_id}.")
             else:
-                logger.warning(f"Attempted to delete non-existent user {item_id}.")
+                logger.warning(f"Попытка удалить несуществующего пользователя {item_id}.")
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in delete user {item_id}: {e}", exc_info=True
+                f"SQLAlchemyError при удалении пользователя {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in delete user {item_id}: {e}", exc_info=True
+                f"Неожиданная ошибка при удалении пользователя {item_id}: {e}", exc_info=True
             )
             await self.session.rollback()
             raise
@@ -99,19 +99,19 @@ class UserRepository(IUserRepository):
             result = await self.session.execute(stmt)
             user = result.scalar_one_or_none()
             if user:
-                logger.debug(f"Retrieved user by Telegram ID {telegram_id}.")
+                logger.debug(f"Получен пользователь по Telegram ID {telegram_id}.")
             else:
-                logger.debug(f"User by Telegram ID {telegram_id} not found.")
+                logger.debug(f"Пользователь по Telegram ID {telegram_id} не найден.")
             return user
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_by_telegram_id for Telegram ID {telegram_id}: {e}",
+                f"SQLAlchemyError в get_by_telegram_id для Telegram ID {telegram_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_by_telegram_id for Telegram ID {telegram_id}: {e}",
+                f"Неожиданная ошибка в get_by_telegram_id для Telegram ID {telegram_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -121,16 +121,16 @@ class UserRepository(IUserRepository):
             stmt = select(User).where(User.is_registered.is_(True))
             result = await self.session.execute(stmt)
             users = list(result.scalars().all())
-            logger.debug(f"Retrieved {len(users)} admin approved users.")
+            logger.debug(f"Получено {len(users)} одобренных администратором пользователей.")
             return users
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_admin_approved_users: {e}", exc_info=True
+                f"SQLAlchemyError в get_admin_approved_users: {e}", exc_info=True
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_admin_approved_users: {e}", exc_info=True
+                f"Неожиданная ошибка в get_admin_approved_users: {e}", exc_info=True
             )
             raise
 
@@ -145,17 +145,17 @@ class UserRepository(IUserRepository):
             )
             await self.session.execute(stmt)
             await self.session.commit()
-            logger.info(f"Saved Google Sheet config for user {user_id}.")
+            logger.info(f"Сохранена конфигурация Google Sheet для пользователя {user_id}.")
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in save_google_sheet_config for user {user_id}: {e}",
+                f"SQLAlchemyError в save_google_sheet_config для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in save_google_sheet_config for user {user_id}: {e}",
+                f"Неожиданная ошибка в save_google_sheet_config для пользователя {user_id}: {e}",
                 exc_info=True,
             )
             await self.session.rollback()
