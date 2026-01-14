@@ -17,4 +17,5 @@ dependencies = [
     "ruff>=0.14.11",
     "sqlalchemy>=2.0.45",
     "dependency-injector>=4.48.3",
+    "tenacity>=9.0.0",
 ]

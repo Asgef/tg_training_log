@@ -68,20 +68,22 @@
   - **Оценка:** 2 дня
   - **Статус:** ✅ Выполнено - создана модель, репозиторий, middleware и миграция. Метод cleanup_old_updates реализован, можно вызывать периодически
 
-- [ ] **TASK-008** [P1] Реализовать graceful shutdown
+- [X] **TASK-008** [P1] Реализовать graceful shutdown
   - Добавить обработку SIGTERM в `main.py`
   - Корректно закрывать соединения с БД
   - Завершать активные FSM states
   - Добавить timeout для shutdown (30 секунд)
   - **Оценка:** 1 день
+  - **Статус:** ✅ Выполнено - добавлена обработка SIGTERM/SIGINT, корректное закрытие всех ресурсов (БД, bot session, FSM storage), отмена активных задач, таймаут 30 секунд для shutdown
 
-- [ ] **TASK-009** [P1] Добавить таймауты и retry для Google Sheets API
+- [X] **TASK-009** [P1] Добавить таймауты и retry для Google Sheets API
   - Установить `tenacity` для retry логики
   - Добавить `httpx.Timeout` для всех HTTP запросов
   - Реализовать exponential backoff
   - Классифицировать ошибки (retryable/non-retryable)
   - **Файл:** `src/infrastructure/services/google_sheets_client.py`
   - **Оценка:** 2 дня
+  - **Статус:** ✅ Выполнено - добавлен tenacity, таймауты через gspread.set_timeout() (connect=10s, read=30s), retry декоратор с exponential backoff (1-60s, до 3 попыток), классификация ошибок (retryable: 429, 5xx, сетевые; non-retryable: 401, 403, 404, ValueError)
 
 ### Структурированное логирование
 
