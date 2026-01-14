@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, List
 from src.application.repositories import IMachineRepository, IMuscleRepository
-from src.application.use_cases import IMachineManagementUseCase
+from src.application.use_case_interfaces import IMachineManagementUseCase
 from src.domain.models import Machine
 
 logger = logging.getLogger(__name__)

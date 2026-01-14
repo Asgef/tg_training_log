@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 from src.application.repositories import IWorkoutSessionRepository, ISetEntryRepository
-from src.application.use_cases import IWorkoutUseCase
+from src.application.use_case_interfaces import IWorkoutUseCase
 from src.domain.models import WorkoutSession, SetEntry
 
 logger = logging.getLogger(__name__)

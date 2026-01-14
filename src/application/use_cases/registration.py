@@ -1,6 +1,6 @@
 import logging
 from src.application.repositories import IUserRepository
-from src.application.use_cases import IRegistrationUseCase
+from src.application.use_case_interfaces import IRegistrationUseCase
 from src.domain.models import User
 
 logger = logging.getLogger(__name__)

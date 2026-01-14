@@ -15,13 +15,16 @@ user_repository: IUserRepository = None  # type: ignore
 
 
 class RegistrationCheckMiddleware(BaseMiddleware):
+    user_repository: IUserRepository = None  # type: ignore
+    
     async def __call__(
         self,
         handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
         event: Message | CallbackQuery,
         data: Dict[str, Any],
     ) -> Any:
-        if user_repository is None:
+        repo = self.user_repository or user_repository
+        if repo is None:
             raise ValueError("UserRepository не инициализирован в middleware")
 
         user_id = event.from_user.id
@@ -40,7 +43,7 @@ class RegistrationCheckMiddleware(BaseMiddleware):
         if user_id in config.admin_ids:
             return await handler(event, data)
 
-        user = await user_repository.get_by_telegram_id(user_id)
+        user = await repo.get_by_telegram_id(user_id)
 
         if user and user.is_registered:
             return await handler(event, data)

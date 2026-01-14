@@ -8,7 +8,7 @@ from src.application.repositories import (
     IMachineRepository,
     ISetEntryRepository,
 )
-from src.application.use_cases import IGoogleSheetsExportUseCase
+from src.application.use_case_interfaces import IGoogleSheetsExportUseCase
 from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
 
 logger = logging.getLogger(__name__)

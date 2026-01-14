@@ -3,6 +3,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 
 # Импорт модулей проекта
@@ -46,7 +47,10 @@ async def main() -> None:
     storage = MemoryStorage()
 
     # Инициализация бота и диспетчера
-    bot = Bot(config.bot_token, parse_mode=ParseMode.HTML)
+    bot = Bot(
+        config.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
     dp = Dispatcher(storage=storage)
 
     # --- Настройка Dependency Injection (упрощённая) ---
