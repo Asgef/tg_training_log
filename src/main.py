@@ -15,6 +15,7 @@ from src.infrastructure.web.handlers import registration, workout, machine, comm
 from src.infrastructure.web.middlewares import RegistrationCheckMiddleware  # Из middlewares.py файла
 from src.infrastructure.web.middleware.database import DatabaseMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.dependency_injection import DependencyInjectionMiddleware  # Из middleware/ папки
+from src.infrastructure.web.middleware.idempotency import IdempotencyMiddleware  # Из middleware/ папки
 
 # Настройка логирования
 setup_logging()
@@ -48,7 +49,11 @@ async def main() -> None:
     dp.message.middleware(DependencyInjectionMiddleware(container))
     dp.callback_query.middleware(DependencyInjectionMiddleware(container))
     
-    # 3. Registration Check (использует зависимости из DependencyInjectionMiddleware)
+    # 3. Idempotency (использует репозиторий из DependencyInjectionMiddleware)
+    dp.message.middleware(IdempotencyMiddleware())
+    dp.callback_query.middleware(IdempotencyMiddleware())
+    
+    # 4. Registration Check (использует зависимости из DependencyInjectionMiddleware)
     dp.message.middleware(RegistrationCheckMiddleware())
     dp.callback_query.middleware(RegistrationCheckMiddleware())
     

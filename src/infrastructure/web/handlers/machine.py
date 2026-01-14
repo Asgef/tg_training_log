@@ -8,7 +8,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.exceptions import TelegramBadRequest
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
-from src.application.repositories import IMuscleRepository
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,6 @@ class MachineStates(StatesGroup):
 async def cmd_machines(
     message: Message,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     try:
         logger.info(f"Пользователь {message.from_user.id} использовал команду /machines.")
@@ -66,7 +64,6 @@ async def add_machine_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     try:
         logger.info(f"Пользователь {callback.from_user.id} инициировал процесс добавления тренажёра.")
@@ -94,8 +91,8 @@ async def process_machine_name(
             await message.answer("Название тренажера не может быть пустым. Попробуйте еще раз.")
             return
 
-        existing_machine = await machine_management_use_case.machine_repository.get_user_machine_by_name(user_id, machine_name)
-        if existing_machine:
+        machine_exists = await machine_management_use_case.check_machine_name_exists(user_id, machine_name)
+        if machine_exists:
             logger.warning(f"Пользователь {user_id} попытался добавить дублирующееся название тренажёра: {machine_name}")
             await message.answer(f"Тренажер с названием '{machine_name}' уже существует. Попробуйте другое название.")
             return
@@ -104,7 +101,7 @@ async def process_machine_name(
         await state.update_data(machine_name=machine_name, selected_muscle_ids=[])
         
         # Получаем группы мышц
-        muscle_groups = await muscle_repository.get_all_muscle_groups()
+        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
         
         if not muscle_groups:
             logger.warning(f"В базе данных нет групп мышц. Создаю тренажер без мышц.")
@@ -115,7 +112,7 @@ async def process_machine_name(
             return
         
         # Предлагаем выбрать группы мышц или отдельные мышцы с визуальной индикацией
-        keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, [])
+        keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, [], machine_management_use_case)
         
         await message.answer(
             f"Тренажер '{machine_name}' сохранен.\n\n"
@@ -168,7 +165,10 @@ async def list_machines_callback(
 
 
 @router.callback_query(F.data.startswith("view_machine_"))
-async def view_machine_details_callback(callback: CallbackQuery) -> None:
+async def view_machine_details_callback(
+    callback: CallbackQuery,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     user_id = callback.from_user.id
     machine_id = int(callback.data.split('_')[-1])
 
@@ -226,13 +226,18 @@ async def archive_machine_callback(
         await callback.answer()
 
 
-async def _build_muscle_groups_keyboard(muscle_groups, selected_muscle_ids: list[int], machine_id: int) -> InlineKeyboardMarkup:
+async def _build_muscle_groups_keyboard(
+    muscle_groups, 
+    selected_muscle_ids: list[int], 
+    machine_id: int,
+    machine_management_use_case: IMachineManagementUseCase
+) -> InlineKeyboardMarkup:
     """Вспомогательная функция для построения клавиатуры с группами мышц и визуальной индикацией (для редактирования)"""
     keyboard_buttons = []
     
     for group in muscle_groups:
         # Получаем мышцы группы для проверки статуса
-        group_muscles = await muscle_repository.get_muscles_by_group_id(group.id)
+        group_muscles = await machine_management_use_case.get_muscles_by_group_id(group.id)
         group_muscle_ids = [m.id for m in group_muscles] if group_muscles else []
         
         # Проверяем, все ли мышцы группы выбраны
@@ -271,13 +276,17 @@ async def _build_muscle_groups_keyboard(muscle_groups, selected_muscle_ids: list
     return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
 
-async def _build_muscle_groups_keyboard_for_creation(muscle_groups, selected_muscle_ids: list[int]) -> InlineKeyboardMarkup:
+async def _build_muscle_groups_keyboard_for_creation(
+    muscle_groups, 
+    selected_muscle_ids: list[int],
+    machine_management_use_case: IMachineManagementUseCase
+) -> InlineKeyboardMarkup:
     """Вспомогательная функция для построения клавиатуры с группами мышц и визуальной индикацией (для создания)"""
     keyboard_buttons = []
     
     for group in muscle_groups:
         # Получаем мышцы группы для проверки статуса
-        group_muscles = await muscle_repository.get_muscles_by_group_id(group.id)
+        group_muscles = await machine_management_use_case.get_muscles_by_group_id(group.id)
         group_muscle_ids = [m.id for m in group_muscles] if group_muscles else []
         
         # Проверяем, все ли мышцы группы выбраны
@@ -321,7 +330,6 @@ async def edit_machine_muscles_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик редактирования мышц тренажера - показывает меню выбора"""
     user_id = callback.from_user.id
@@ -346,7 +354,7 @@ async def edit_machine_muscles_callback(
         )
         
         # Получаем группы мышц
-        muscle_groups = await muscle_repository.get_all_muscle_groups()
+        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
         logger.debug(f"Получено групп мышц: {len(muscle_groups) if muscle_groups else 0}")
         
         if not muscle_groups:
@@ -356,9 +364,9 @@ async def edit_machine_muscles_callback(
             return
         
         # Предлагаем выбрать группы мышц или отдельные мышцы с визуальной индикацией
-        keyboard = await _build_muscle_groups_keyboard(muscle_groups, current_muscle_ids, machine_id)
+        keyboard = await _build_muscle_groups_keyboard(muscle_groups, current_muscle_ids, machine_id, machine_management_use_case)
         
-        current_muscles = await muscle_repository.get_muscles_by_ids(current_muscle_ids) if current_muscle_ids else []
+        current_muscles = await machine_management_use_case.get_muscles_by_ids(current_muscle_ids) if current_muscle_ids else []
         if current_muscles:
             # Ограничиваем длину списка мышц, чтобы не превысить лимит Telegram (4096 символов)
             muscles_list = [m.name for m in current_muscles]
@@ -413,7 +421,6 @@ async def edit_select_group_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик выбора группы мышц при редактировании - переключает все мышцы группы (добавляет/удаляет)"""
     user_id = callback.from_user.id
@@ -421,7 +428,7 @@ async def edit_select_group_callback(
     
     try:
         # Получаем мышцы группы
-        muscles = await muscle_repository.get_muscles_by_group_id(group_id)
+        muscles = await machine_management_use_case.get_muscles_by_group_id(group_id)
         
         if not muscles:
             await callback.answer("В этой группе нет мышц.", show_alert=True)
@@ -439,7 +446,7 @@ async def edit_select_group_callback(
             return
         
         # Получаем группу для отображения
-        group = await muscle_repository.get_muscle_group_by_id(group_id)
+        group = await machine_management_use_case.get_muscle_group_by_id(group_id)
         group_name = group.name if group else f"Группа {group_id}"
         
         # Проверяем, все ли мышцы группы уже выбраны
@@ -466,16 +473,16 @@ async def edit_select_group_callback(
             return
         
         # Получаем группы мышц для меню
-        muscle_groups = await muscle_repository.get_all_muscle_groups()
+        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
         if not muscle_groups:
             await callback.message.edit_text("В базе данных нет групп мышц.")
             return
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await _build_muscle_groups_keyboard(muscle_groups, selected_muscle_ids, machine_id)
+        keyboard = await _build_muscle_groups_keyboard(muscle_groups, selected_muscle_ids, machine_id, machine_management_use_case)
         
         # Формируем текст с обновленным списком мышц
-        selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
         if selected_muscles:
             muscles_list = [m.name for m in selected_muscles]
             muscles_str = ", ".join(muscles_list)
@@ -511,7 +518,6 @@ async def edit_select_individual_muscles_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик выбора отдельных мышц при редактировании - показывает список всех мышц"""
     user_id = callback.from_user.id
@@ -534,7 +540,7 @@ async def edit_select_individual_muscles_callback(
             return
         
         # Получаем все мышцы, сгруппированные по группам
-        all_muscles = await muscle_repository.get_all_muscles()
+        all_muscles = await machine_management_use_case.get_all_muscles()
         
         if not all_muscles:
             await callback.answer("В базе данных нет мышц.", show_alert=True)
@@ -588,7 +594,7 @@ async def edit_select_individual_muscles_callback(
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         
-        selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
         muscles_str = ", ".join([m.name for m in selected_muscles]) if selected_muscles else "Нет"
         
         await safe_edit_text(
@@ -634,13 +640,13 @@ async def toggle_edit_muscle_callback(
         
         await state.update_data(selected_muscle_ids=selected_muscle_ids)
         
-        muscle = await muscle_repository.get_by_id(muscle_id)
+        muscle = await machine_management_use_case.get_muscle_by_id(muscle_id)
         muscle_name = muscle.name if muscle else f"Мышца {muscle_id}"
         
         await callback.answer(f"Мышца '{muscle_name}' {action}")
         
         # Обновляем сообщение - вызываем edit_select_individual_muscles_callback заново
-        await edit_select_individual_muscles_callback(callback, state)
+        await edit_select_individual_muscles_callback(callback, state, machine_management_use_case)
         
     except Exception as e:
         logger.error(f"Ошибка в toggle_edit_muscle_callback для пользователя {user_id}, мышца {muscle_id}: {e}", exc_info=True)
@@ -652,7 +658,6 @@ async def save_machine_muscles_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик сохранения изменений мышц тренажера"""
     user_id = callback.from_user.id
@@ -686,7 +691,7 @@ async def save_machine_muscles_callback(
         
         muscles_str = "Не указаны"
         if selected_muscle_ids:
-            selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids)
+            selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids)
             muscles_str = ", ".join([m.name for m in selected_muscles])
         
         await callback.message.edit_text(
@@ -725,7 +730,11 @@ async def save_machine_muscles_callback(
 
 
 @router.callback_query(F.data.startswith("edit_machine_menu_"))
-async def edit_machine_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def edit_machine_callback(
+    callback: CallbackQuery, 
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     """Обработчик входа в режим редактирования тренажера"""
     user_id = callback.from_user.id
     machine_id = int(callback.data.split('_')[-1])
@@ -782,7 +791,11 @@ async def edit_machine_name_callback(
 
 
 @router.message(MachineStates.waiting_for_edit_name)
-async def process_edit_machine_name(message: Message, state: FSMContext) -> None:
+async def process_edit_machine_name(
+    message: Message, 
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     user_id = message.from_user.id
     data = await state.get_data()
     machine_id = data.get("editing_machine_id")
@@ -862,7 +875,6 @@ async def select_group_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик выбора группы мышц при создании - переключает все мышцы группы (добавляет/удаляет)"""
     user_id = callback.from_user.id
@@ -870,7 +882,7 @@ async def select_group_callback(
     
     try:
         # Получаем мышцы группы
-        muscles = await muscle_repository.get_muscles_by_group_id(group_id)
+        muscles = await machine_management_use_case.get_muscles_by_group_id(group_id)
         
         if not muscles:
             await callback.answer("В этой группе нет мышц.", show_alert=True)
@@ -888,7 +900,7 @@ async def select_group_callback(
             return
         
         # Получаем группу для отображения
-        group = await muscle_repository.get_muscle_group_by_id(group_id)
+        group = await machine_management_use_case.get_muscle_group_by_id(group_id)
         group_name = group.name if group else f"Группа {group_id}"
         
         # Проверяем, все ли мышцы группы уже выбраны
@@ -909,16 +921,16 @@ async def select_group_callback(
         await callback.answer(action_text)
         
         # Получаем группы мышц для меню
-        muscle_groups = await muscle_repository.get_all_muscle_groups()
+        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
         if not muscle_groups:
             await callback.message.edit_text("В базе данных нет групп мышц.")
             return
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, selected_muscle_ids)
+        keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, selected_muscle_ids, machine_management_use_case)
         
         # Формируем текст с обновленным списком мышц
-        selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
         if selected_muscles:
             muscles_list = [m.name for m in selected_muscles]
             muscles_str = ", ".join(muscles_list)
@@ -954,14 +966,13 @@ async def select_individual_muscles_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик выбора отдельных мышц - показывает список всех мышц"""
     user_id = callback.from_user.id
     
     try:
         # Получаем все мышцы, сгруппированные по группам
-        all_muscles = await muscle_repository.get_all_muscles()
+        all_muscles = await machine_management_use_case.get_all_muscles()
         
         if not all_muscles:
             await callback.answer("В базе данных нет мышц.", show_alert=True)
@@ -1020,7 +1031,7 @@ async def select_individual_muscles_callback(
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         
-        selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
         selected_names = ", ".join([m.name for m in selected_muscles]) if selected_muscles else "Нет"
         
         await callback.message.edit_text(
@@ -1060,13 +1071,13 @@ async def toggle_muscle_callback(
         
         await state.update_data(selected_muscle_ids=selected_muscle_ids)
         
-        muscle = await muscle_repository.get_by_id(muscle_id)
+        muscle = await machine_management_use_case.get_muscle_by_id(muscle_id)
         muscle_name = muscle.name if muscle else f"Мышца {muscle_id}"
         
         await callback.answer(f"Мышца '{muscle_name}' {action}")
         
         # Обновляем сообщение с текущим состоянием
-        await select_individual_muscles_callback(callback, state)
+        await select_individual_muscles_callback(callback, state, machine_management_use_case)
         
     except Exception as e:
         logger.error(f"Ошибка в toggle_muscle_callback для пользователя {user_id}, мышца {muscle_id}: {e}", exc_info=True)
@@ -1078,14 +1089,13 @@ async def add_more_muscles_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик для возврата к выбору мышц"""
     user_id = callback.from_user.id
     
     try:
         # Получаем группы мышц
-        muscle_groups = await muscle_repository.get_all_muscle_groups()
+        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
         
         if not muscle_groups:
             await callback.answer("В базе данных нет групп мышц.", show_alert=True)
@@ -1096,9 +1106,9 @@ async def add_more_muscles_callback(
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, selected_muscle_ids)
+        keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, selected_muscle_ids, machine_management_use_case)
         
-        selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
         if selected_muscles:
             muscles_list = [m.name for m in selected_muscles]
             muscles_str = ", ".join(muscles_list)
@@ -1144,7 +1154,6 @@ async def finish_machine_creation_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик завершения создания тренажера"""
     user_id = callback.from_user.id
@@ -1172,7 +1181,7 @@ async def finish_machine_creation_callback(
         
         muscles_str = "Не указаны"
         if selected_muscle_ids:
-            selected_muscles = await muscle_repository.get_muscles_by_ids(selected_muscle_ids)
+            selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids)
             muscles_str = ", ".join([m.name for m in selected_muscles])
         
         await callback.message.edit_text(
@@ -1194,7 +1203,6 @@ async def finish_machine_creation_callback(
 async def handle_machines_button(
     message: Message,
     machine_management_use_case: IMachineManagementUseCase,
-    muscle_repository: IMuscleRepository,
 ) -> None:
     """Обработчик кнопки 'Тренажеры'."""
-    await cmd_machines(message, machine_management_use_case, muscle_repository)
+    await cmd_machines(message, machine_management_use_case)

@@ -39,28 +39,36 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             raise
 
     async def add(self, muscle: Muscle) -> Muscle:
+        """Добавляет мышцу в БД.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             self.session.add(muscle)
-            await self.session.commit()
+            await self.session.flush()  # Получаем ID, но не коммитим транзакцию
             await self.session.refresh(muscle)
             logger.info(f"Добавлена новая мышца {muscle.id}.")
             return muscle
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError при добавлении мышцы {muscle.id}: {e}", exc_info=True
+                f"SQLAlchemyError при добавлении мышцы: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
-                f"Неожиданная ошибка при добавлении мышцы {muscle.id}: {e}", exc_info=True
+                f"Неожиданная ошибка при добавлении мышцы: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def update(self, muscle: Muscle) -> Muscle:
+        """Обновляет мышцу в БД.
+        
+        Использует flush() для синхронизации изменений, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
-            await self.session.commit()
+            await self.session.flush()  # Синхронизируем изменения, но не коммитим
             await self.session.refresh(muscle)
             logger.info(f"Обновлена мышца {muscle.id}.")
             return muscle
@@ -68,21 +76,23 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             logger.error(
                 f"SQLAlchemyError при обновлении мышцы {muscle.id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при обновлении мышцы {muscle.id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def delete(self, item_id: Any) -> None:
+        """Удаляет мышцу из БД.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             muscle = await self.get_by_id(item_id)
             if muscle:
                 await self.session.delete(muscle)
-                await self.session.commit()
+                # Не делаем commit() - это сделает middleware/use case
                 logger.info(f"Deleted muscle {item_id}.")
             else:
                 logger.warning(f"Attempted to delete non-existent muscle {item_id}.")
@@ -90,13 +100,11 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             logger.error(
                 f"SQLAlchemyError при удалении мышцы {item_id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при удалении мышцы {item_id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def get_all_muscles(self) -> List[Muscle]:
@@ -203,9 +211,14 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             raise
 
     async def add_muscle_group(self, muscle_group: MuscleGroup) -> MuscleGroup:
+        """Добавляет группу мышц в БД.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             self.session.add(muscle_group)
-            await self.session.commit()
+            await self.session.flush()  # Получаем ID, но не коммитим транзакцию
             await self.session.refresh(muscle_group)
             logger.info(
                 f"Добавлена новая группа мышц {muscle_group.id} ({muscle_group.name})."
@@ -216,12 +229,10 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
                 f"SQLAlchemyError при добавлении группы мышц {muscle_group.name}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при добавлении группы мышц {muscle_group.name}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise

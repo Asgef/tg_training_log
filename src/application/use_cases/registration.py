@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from src.application.repositories import IUserRepository
 from src.application.use_case_interfaces import IRegistrationUseCase
 from src.domain.models import User
@@ -69,4 +70,22 @@ class RegistrationUseCase(IRegistrationUseCase):
             return False
         except Exception as e:
             logger.error(f"Ошибка при отклонении регистрации для пользователя {user_id}: {e}")
+            return False
+
+    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        """Получает пользователя по Telegram ID."""
+        try:
+            user = await self.user_repository.get_by_telegram_id(telegram_id)
+            return user
+        except Exception as e:
+            logger.error(f"Ошибка при получении пользователя {telegram_id}: {e}")
+            return None
+
+    async def check_user_registered(self, telegram_id: int) -> bool:
+        """Проверяет, зарегистрирован ли пользователь."""
+        try:
+            user = await self.user_repository.get_by_telegram_id(telegram_id)
+            return user is not None and user.is_registered
+        except Exception as e:
+            logger.error(f"Ошибка при проверке регистрации пользователя {telegram_id}: {e}")
             return False

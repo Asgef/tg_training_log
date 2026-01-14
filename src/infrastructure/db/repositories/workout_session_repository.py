@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,9 +40,14 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             raise
 
     async def add(self, session: WorkoutSession) -> WorkoutSession:
+        """Добавляет тренировку в БД.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             self.session.add(session)
-            await self.session.commit()
+            await self.session.flush()  # Получаем ID, но не коммитим транзакцию
             await self.session.refresh(session)
             logger.info(
                 f"Добавлена новая тренировка {session.id} для пользователя {session.user_id}."
@@ -53,19 +58,22 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
                 f"SQLAlchemyError при добавлении тренировки для пользователя {session.user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при добавлении тренировки для пользователя {session.user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
 
     async def update(self, session: WorkoutSession) -> WorkoutSession:
+        """Обновляет тренировку в БД.
+        
+        Использует flush() для синхронизации изменений, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
-            await self.session.commit()
+            await self.session.flush()  # Синхронизируем изменения, но не коммитим
             await self.session.refresh(session)
             logger.info(f"Обновлена тренировка {session.id}.")
             return session
@@ -74,22 +82,24 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
                 f"SQLAlchemyError при обновлении тренировки {session.id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при обновлении тренировки {session.id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
 
     async def delete(self, item_id: Any) -> None:
+        """Удаляет тренировку из БД.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             session = await self.get_by_id(item_id)
             if session:
                 await self.session.delete(session)
-                await self.session.commit()
+                # Не делаем commit() - это сделает middleware/use case
                 logger.info(f"Удалена тренировка {item_id}.")
             else:
                 logger.warning(
@@ -100,14 +110,12 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
                 f"SQLAlchemyError при удалении тренировки {item_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при удалении тренировки {item_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
 
     async def get_active_session_for_user(
@@ -140,10 +148,15 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
             raise
 
     async def start_session(self, user_id: int) -> WorkoutSession:
+        """Создаёт новую тренировку для пользователя.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
-            new_session = WorkoutSession(user_id=user_id, started_at=datetime.utcnow())
+            new_session = WorkoutSession(user_id=user_id, started_at=datetime.now(timezone.utc))
             self.session.add(new_session)
-            await self.session.commit()
+            await self.session.flush()  # Получаем ID, но не коммитим транзакцию
             await self.session.refresh(new_session)
             logger.info(
                 f"Started new workout session {new_session.id} for user {user_id}."
@@ -154,37 +167,37 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
                 f"SQLAlchemyError в start_session для пользователя {user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка в start_session для пользователя {user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
 
     async def end_session(self, session_id: int) -> None:
+        """Завершает тренировку.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             stmt = (
                 update(WorkoutSession)
                 .where(WorkoutSession.id == session_id)
-                .values(ended_at=datetime.utcnow())
+                .values(ended_at=datetime.now(timezone.utc))
             )
             await self.session.execute(stmt)
-            await self.session.commit()
+            # Не делаем commit() - это сделает middleware/use case
             logger.info(f"Ended workout session {session_id}.")
         except SQLAlchemyError as e:
             logger.error(
                 f"SQLAlchemyError в end_session для тренировки {session_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка в end_session для тренировки {session_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise

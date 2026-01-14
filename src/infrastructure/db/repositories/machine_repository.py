@@ -44,9 +44,14 @@ class MachineRepository(IMachineRepository):
             raise
 
     async def add(self, machine: Machine) -> Machine:
+        """Добавляет тренажёр в БД.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             self.session.add(machine)
-            await self.session.commit()
+            await self.session.flush()  # Получаем ID, но не коммитим транзакцию
             await self.session.refresh(machine)
             logger.info(f"Добавлен новый тренажёр {machine.id} для пользователя {machine.user_id}.")
             return machine
@@ -55,19 +60,22 @@ class MachineRepository(IMachineRepository):
                 f"SQLAlchemyError при добавлении тренажёра для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при добавлении тренажёра для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
 
     async def update(self, machine: Machine) -> Machine:
+        """Обновляет тренажёр в БД.
+        
+        Использует flush() для синхронизации изменений, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
-            await self.session.commit()
+            await self.session.flush()  # Синхронизируем изменения, но не коммитим
             await self.session.refresh(machine)
             logger.info(f"Обновлён тренажёр {machine.id}.")
             return machine
@@ -75,21 +83,23 @@ class MachineRepository(IMachineRepository):
             logger.error(
                 f"SQLAlchemyError при обновлении тренажёра {machine.id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при обновлении тренажёра {machine.id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def delete(self, item_id: Any) -> None:
+        """Удаляет тренажёр из БД.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             machine = await self.get_by_id(item_id)
             if machine:
                 await self.session.delete(machine)
-                await self.session.commit()
+                # Не делаем commit() - это сделает middleware/use case
                 logger.info(f"Удалён тренажёр {item_id}.")
             else:
                 logger.warning(f"Попытка удалить несуществующий тренажёр {item_id}.")
@@ -97,13 +107,11 @@ class MachineRepository(IMachineRepository):
             logger.error(
                 f"SQLAlchemyError при удалении тренажёра {item_id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при удалении тренажёра {item_id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def get_user_machines(
@@ -163,9 +171,14 @@ class MachineRepository(IMachineRepository):
     async def add_machine_with_muscles(
         self, machine: Machine, muscle_ids: List[int]
     ) -> Machine:
+        """Добавляет тренажёр с мышцами в БД.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             self.session.add(machine)
-            await self.session.flush()
+            await self.session.flush()  # Получаем ID тренажёра
 
             for muscle_id in muscle_ids:
                 machine_muscle = MachineMuscle(
@@ -173,7 +186,7 @@ class MachineRepository(IMachineRepository):
                 )
                 self.session.add(machine_muscle)
 
-            await self.session.commit()
+            await self.session.flush()  # Синхронизируем связи, но не коммитим
             await self.session.refresh(machine)
             logger.info(
                 f"Добавлен новый тренажёр {machine.id} с мышцами {muscle_ids} для пользователя {machine.user_id}."
@@ -184,19 +197,21 @@ class MachineRepository(IMachineRepository):
                 f"SQLAlchemyError при добавлении тренажёра с мышцами для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при добавлении тренажёра с мышцами для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
 
     async def update_machine_muscles(
         self, machine_id: int, muscle_ids: List[int]
     ) -> None:
+        """Обновляет связи тренажёра с мышцами.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             # Удаляем все существующие связи
             stmt = select(MachineMuscle).where(MachineMuscle.machine_id == machine_id)
@@ -213,7 +228,7 @@ class MachineRepository(IMachineRepository):
                 )
                 self.session.add(machine_muscle)
             
-            await self.session.commit()
+            # Не делаем commit() - это сделает middleware/use case
             logger.info(
                 f"Обновлены мышцы для тренажёра {machine_id}: {muscle_ids}."
             )
@@ -222,12 +237,10 @@ class MachineRepository(IMachineRepository):
                 f"SQLAlchemyError при обновлении мышц тренажёра {machine_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при обновлении мышц тренажёра {machine_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise

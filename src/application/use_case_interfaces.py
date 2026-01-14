@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List
 
 # Импорт доменных моделей
-from src.domain.models import User, Machine, WorkoutSession, SetEntry
+from src.domain.models import User, Machine, WorkoutSession, SetEntry, Muscle, MuscleGroup
 
 
 class IRegistrationUseCase(ABC):
@@ -26,6 +26,16 @@ class IRegistrationUseCase(ABC):
     @abstractmethod
     async def reject_registration(self, user_id: int) -> bool:
         """Отклоняет регистрацию пользователя."""
+        pass
+
+    @abstractmethod
+    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional["User"]:
+        """Получает пользователя по Telegram ID."""
+        pass
+
+    @abstractmethod
+    async def check_user_registered(self, telegram_id: int) -> bool:
+        """Проверяет, зарегистрирован ли пользователь."""
         pass
 
 
@@ -95,6 +105,41 @@ class IMachineManagementUseCase(ABC):
     @abstractmethod
     async def archive_machine(self, user_id: int, machine_id: int) -> bool:
         """Архивирует тренажёр, делая его неактивным для новых подходов."""
+        pass
+
+    @abstractmethod
+    async def check_machine_name_exists(self, user_id: int, name: str) -> bool:
+        """Проверяет, существует ли тренажёр с таким именем у пользователя."""
+        pass
+
+    @abstractmethod
+    async def get_all_muscle_groups(self) -> List["MuscleGroup"]:
+        """Получает все группы мышц."""
+        pass
+
+    @abstractmethod
+    async def get_muscles_by_group_id(self, group_id: int) -> List["Muscle"]:
+        """Получает мышцы по ID группы."""
+        pass
+
+    @abstractmethod
+    async def get_muscle_group_by_id(self, group_id: int) -> Optional["MuscleGroup"]:
+        """Получает группу мышц по ID."""
+        pass
+
+    @abstractmethod
+    async def get_all_muscles(self) -> List["Muscle"]:
+        """Получает все мышцы."""
+        pass
+
+    @abstractmethod
+    async def get_muscles_by_ids(self, muscle_ids: List[int]) -> List["Muscle"]:
+        """Получает мышцы по списку ID."""
+        pass
+
+    @abstractmethod
+    async def get_muscle_by_id(self, muscle_id: int) -> Optional["Muscle"]:
+        """Получает мышцу по ID."""
         pass
 
 

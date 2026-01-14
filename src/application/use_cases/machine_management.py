@@ -2,7 +2,7 @@ import logging
 from typing import Optional, List
 from src.application.repositories import IMachineRepository, IMuscleRepository
 from src.application.use_case_interfaces import IMachineManagementUseCase
-from src.domain.models import Machine
+from src.domain.models import Machine, Muscle, MuscleGroup
 
 logger = logging.getLogger(__name__)
 
@@ -175,3 +175,66 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                 f"Ошибка при архивации тренажёра {machine_id} для пользователя {user_id}: {e}"
             )
             return False
+
+    async def check_machine_name_exists(self, user_id: int, name: str) -> bool:
+        """Проверяет, существует ли тренажёр с таким именем у пользователя."""
+        try:
+            machine = await self.machine_repository.get_user_machine_by_name(user_id, name.strip())
+            return machine is not None
+        except Exception as e:
+            logger.error(f"Ошибка при проверке существования тренажёра '{name}' для пользователя {user_id}: {e}")
+            return False
+
+    async def get_all_muscle_groups(self) -> List[MuscleGroup]:
+        """Получает все группы мышц."""
+        try:
+            groups = await self.muscle_repository.get_all_muscle_groups()
+            return groups
+        except Exception as e:
+            logger.error(f"Ошибка при получении групп мышц: {e}")
+            return []
+
+    async def get_muscles_by_group_id(self, group_id: int) -> List[Muscle]:
+        """Получает мышцы по ID группы."""
+        try:
+            muscles = await self.muscle_repository.get_muscles_by_group_id(group_id)
+            return muscles
+        except Exception as e:
+            logger.error(f"Ошибка при получении мышц группы {group_id}: {e}")
+            return []
+
+    async def get_muscle_group_by_id(self, group_id: int) -> Optional[MuscleGroup]:
+        """Получает группу мышц по ID."""
+        try:
+            group = await self.muscle_repository.get_muscle_group_by_id(group_id)
+            return group
+        except Exception as e:
+            logger.error(f"Ошибка при получении группы мышц {group_id}: {e}")
+            return None
+
+    async def get_all_muscles(self) -> List[Muscle]:
+        """Получает все мышцы."""
+        try:
+            muscles = await self.muscle_repository.get_all_muscles()
+            return muscles
+        except Exception as e:
+            logger.error(f"Ошибка при получении всех мышц: {e}")
+            return []
+
+    async def get_muscles_by_ids(self, muscle_ids: List[int]) -> List[Muscle]:
+        """Получает мышцы по списку ID."""
+        try:
+            muscles = await self.muscle_repository.get_muscles_by_ids(muscle_ids)
+            return muscles
+        except Exception as e:
+            logger.error(f"Ошибка при получении мышц по ID {muscle_ids}: {e}")
+            return []
+
+    async def get_muscle_by_id(self, muscle_id: int) -> Optional[Muscle]:
+        """Получает мышцу по ID."""
+        try:
+            muscle = await self.muscle_repository.get_by_id(muscle_id)
+            return muscle
+        except Exception as e:
+            logger.error(f"Ошибка при получении мышцы {muscle_id}: {e}")
+            return None

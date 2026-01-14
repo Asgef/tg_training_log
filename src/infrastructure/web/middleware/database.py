@@ -50,11 +50,12 @@ class DatabaseMiddleware(BaseMiddleware):
             
             try:
                 result = await handler(event, data)
-                # Commit автоматически происходит при выходе из context manager
+                # Делаем commit при успешном выполнении handler
                 await session.commit()
                 return result
             except Exception as e:
-                # Rollback автоматически происходит при ошибке
+                # Делаем rollback при ошибке
                 await session.rollback()
                 logger.error(f"Error in handler, session rolled back: {e}", exc_info=True)
                 raise
+            # Сессия автоматически закроется при выходе из context manager

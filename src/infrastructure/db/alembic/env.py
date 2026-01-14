@@ -1,11 +1,12 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncConnection
 
 from alembic import context
 
 import sys
+import asyncio
 from pathlib import Path
 
 # Добавляем корневую директорию проекта в путь
@@ -59,25 +60,30 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def run_migrations_online() -> None:
-    """Запуск миграций в 'online' режиме.
+def do_run_migrations(connection: AsyncConnection) -> None:
+    """Выполняет миграции с использованием async соединения."""
+    context.configure(connection=connection, target_metadata=target_metadata)
 
-    В этом сценарии нам нужно создать Engine
-    и связать соединение с контекстом.
+    with context.begin_transaction():
+        context.run_migrations()
 
-    """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+
+async def run_async_migrations() -> None:
+    """Запуск миграций в 'online' режиме с async engine."""
+    connectable = create_async_engine(
+        app_config.database_url,
         poolclass=pool.NullPool,
-        url=app_config.database_url,
     )
 
-    with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
 
-        with context.begin_transaction():
-            context.run_migrations()
+    await connectable.dispose()
+
+
+def run_migrations_online() -> None:
+    """Запуск миграций в 'online' режиме."""
+    asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

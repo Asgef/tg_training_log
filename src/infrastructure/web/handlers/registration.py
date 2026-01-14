@@ -14,7 +14,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from src.configs.config import config
-from src.application.repositories import IUserRepository
 from src.application.use_case_interfaces import IRegistrationUseCase
 
 logger = logging.getLogger(__name__)
@@ -52,13 +51,13 @@ class RegistrationStates(StatesGroup):
 @router.message(Command("start"))
 async def cmd_start(
     message: Message,
-    user_repository: IUserRepository,
+    registration_use_case: IRegistrationUseCase,
     state: FSMContext = None,
 ) -> None:
     """Обработчик команды /start."""
     try:
         user_telegram_id = message.from_user.id
-        user = await user_repository.get_by_telegram_id(user_telegram_id)
+        user = await registration_use_case.get_user_by_telegram_id(user_telegram_id)
 
         if user and user.is_registered:
             logger.info(f"Пользователь {user_telegram_id} уже зарегистрирован и использовал /start.")
@@ -222,14 +221,14 @@ async def admin_reject_request(
 @router.message(Command("menu"))
 async def cmd_menu(
     message: Message,
-    user_repository: IUserRepository,
+    registration_use_case: IRegistrationUseCase,
 ) -> None:
     """Показывает главное меню."""
     try:
         user_telegram_id = message.from_user.id
-        user = await user_repository.get_by_telegram_id(user_telegram_id)
+        is_registered = await registration_use_case.check_user_registered(user_telegram_id)
         
-        if user and user.is_registered:
+        if is_registered:
             await message.answer(
                 "Главное меню:",
                 reply_markup=get_main_menu(),

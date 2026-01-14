@@ -2,7 +2,7 @@
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 from sqlalchemy import BigInteger, Boolean, Text, Integer, Numeric, TIMESTAMP, ForeignKey
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -17,10 +17,10 @@ class User(Base):
     telegram_firstname: Mapped[str | None] = mapped_column(Text)
     telegram_lastname: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
     timezone: Mapped[str] = mapped_column(Text, default="Europe/Berlin")
 
@@ -30,10 +30,10 @@ class MuscleGroup(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
 
@@ -43,10 +43,10 @@ class Muscle(Base):
     name: Mapped[str] = mapped_column(Text, unique=True)
     group_id: Mapped[int] = mapped_column(ForeignKey("muscle_groups.id"))
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     group: Mapped["MuscleGroup"] = relationship(
@@ -62,10 +62,10 @@ class Machine(Base):
     photo_file_id: Mapped[str | None] = mapped_column(Text)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     muscles: Mapped[List["Muscle"]] = relationship(
@@ -86,10 +86,10 @@ class WorkoutSession(Base):
     started_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
 
@@ -102,8 +102,17 @@ class SetEntry(Base):
     reps: Mapped[int] = mapped_column(Integer)
     failure: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+class ProcessedUpdate(Base):
+    """Модель для хранения обработанных Telegram updates для обеспечения идемпотентности."""
+    __tablename__ = "processed_updates"
+    update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    processed_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

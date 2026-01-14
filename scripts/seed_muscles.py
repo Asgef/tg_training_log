@@ -64,58 +64,50 @@ async def seed_muscles() -> None:
     total_muscles = sum(len(muscles) for muscles in groups_muscles.values())
     logger.info(f"Найдено {len(groups_muscles)} групп мышц, всего {total_muscles} мышц")
     
-    async for session in get_session():
+    async with get_session() as session:
         muscle_repo = MuscleRepository(session)
         
-        try:
-            # Создаем группы мышц
-            group_id_map: Dict[str, int] = {}  # Храним только ID, чтобы избежать проблем с async
+        # Создаем группы мышц
+        group_id_map: Dict[str, int] = {}  # Храним только ID, чтобы избежать проблем с async
+        
+        for group_name in groups_muscles.keys():
+            # Проверяем, существует ли уже группа
+            existing_groups = await muscle_repo.get_all_muscle_groups()
+            existing_group = next(
+                (g for g in existing_groups if g.name == group_name),
+                None
+            )
             
-            for group_name in groups_muscles.keys():
-                # Проверяем, существует ли уже группа
-                existing_groups = await muscle_repo.get_all_muscle_groups()
-                existing_group = next(
-                    (g for g in existing_groups if g.name == group_name),
-                    None
-                )
+            if existing_group:
+                # Сохраняем ID сразу, пока объект в сессии
+                group_id = existing_group.id
+                logger.info(f"Группа мышц '{group_name}' уже существует (ID: {group_id})")
+                group_id_map[group_name] = group_id
+            else:
+                new_group = MuscleGroup(name=group_name)
+                created_group = await muscle_repo.add_muscle_group(new_group)
+                group_id = created_group.id  # Сохраняем ID сразу
+                logger.info(f"Создана группа мышц '{group_name}' (ID: {group_id})")
+                group_id_map[group_name] = group_id
+        
+        # Создаем мышцы
+        all_muscles = await muscle_repo.get_all_muscles()
+        existing_muscle_names = {m.name for m in all_muscles}
+        
+        for group_name, muscle_names in groups_muscles.items():
+            group_id = group_id_map[group_name]  # Используем сохраненный ID
+            
+            for muscle_name in muscle_names:
+                if muscle_name in existing_muscle_names:
+                    logger.debug(f"Мышца '{muscle_name}' уже существует, пропускаем")
+                    continue
                 
-                if existing_group:
-                    # Сохраняем ID сразу, пока объект в сессии
-                    group_id = existing_group.id
-                    logger.info(f"Группа мышц '{group_name}' уже существует (ID: {group_id})")
-                    group_id_map[group_name] = group_id
-                else:
-                    new_group = MuscleGroup(name=group_name)
-                    created_group = await muscle_repo.add_muscle_group(new_group)
-                    group_id = created_group.id  # Сохраняем ID сразу
-                    logger.info(f"Создана группа мышц '{group_name}' (ID: {group_id})")
-                    group_id_map[group_name] = group_id
-            
-            # Создаем мышцы
-            all_muscles = await muscle_repo.get_all_muscles()
-            existing_muscle_names = {m.name for m in all_muscles}
-            
-            for group_name, muscle_names in groups_muscles.items():
-                group_id = group_id_map[group_name]  # Используем сохраненный ID
-                
-                for muscle_name in muscle_names:
-                    if muscle_name in existing_muscle_names:
-                        logger.debug(f"Мышца '{muscle_name}' уже существует, пропускаем")
-                        continue
-                    
-                    new_muscle = Muscle(name=muscle_name, group_id=group_id)
-                    created_muscle = await muscle_repo.add(new_muscle)
-                    existing_muscle_names.add(muscle_name)
-                    logger.info(f"Создана мышца '{muscle_name}' (ID: {created_muscle.id}) в группе '{group_name}'")
-            
-            logger.info("Заполнение базы данных завершено успешно!")
-            
-        except Exception as e:
-            logger.error(f"Ошибка при заполнении базы данных: {e}", exc_info=True)
-            await session.rollback()
-            raise
-        finally:
-            break
+                new_muscle = Muscle(name=muscle_name, group_id=group_id)
+                created_muscle = await muscle_repo.add(new_muscle)
+                existing_muscle_names.add(muscle_name)
+                logger.info(f"Создана мышца '{muscle_name}' (ID: {created_muscle.id}) в группе '{group_name}'")
+        
+        logger.info("Заполнение базы данных завершено успешно!")
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from src.domain.models import (
     SetEntry,
     Muscle,
     MuscleGroup,
+    ProcessedUpdate,
 )
 
 
@@ -113,4 +114,45 @@ class IMuscleRepository(BaseRepository):
 class IMuscleGroupRepository(BaseRepository):
     @abstractmethod
     async def get_all_muscle_groups(self) -> List["MuscleGroup"]:
+        pass
+
+    @abstractmethod
+    async def get_muscle_group_by_id(self, group_id: int) -> Optional["MuscleGroup"]:
+        pass
+
+
+class IProcessedUpdateRepository(ABC):
+    """Репозиторий для работы с обработанными Telegram updates."""
+    
+    @abstractmethod
+    async def is_processed(self, update_id: int) -> bool:
+        """Проверяет, был ли update уже обработан.
+        
+        Args:
+            update_id: ID Telegram update
+            
+        Returns:
+            True если update уже обработан, False иначе
+        """
+        pass
+    
+    @abstractmethod
+    async def mark_as_processed(self, update_id: int) -> None:
+        """Помечает update как обработанный.
+        
+        Args:
+            update_id: ID Telegram update
+        """
+        pass
+    
+    @abstractmethod
+    async def cleanup_old_updates(self, hours: int = 24) -> int:
+        """Удаляет старые записи о processed updates.
+        
+        Args:
+            hours: Количество часов, после которых записи считаются старыми (по умолчанию 24)
+            
+        Returns:
+            Количество удалённых записей
+        """
         pass

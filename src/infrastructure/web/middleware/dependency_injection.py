@@ -57,6 +57,7 @@ class DependencyInjectionMiddleware(BaseMiddleware):
         muscle_repo = self.container.muscle_repository(session=session)
         workout_session_repo = self.container.workout_session_repository(session=session)
         set_entry_repo = self.container.set_entry_repository(session=session)
+        processed_update_repo = self.container.processed_update_repository(session=session)
         
         # Создаём Google Sheets client (singleton, не зависит от сессии)
         try:
@@ -88,5 +89,6 @@ class DependencyInjectionMiddleware(BaseMiddleware):
         # Инъецируем репозитории напрямую (для middleware)
         data["muscle_repository"] = muscle_repo
         data["user_repository"] = user_repo
+        data["processed_update_repository"] = processed_update_repo
         
         return await handler(event, data)

@@ -37,24 +37,32 @@ class UserRepository(IUserRepository):
             raise
 
     async def add(self, user: User) -> User:
+        """Добавляет пользователя в БД.
+        
+        Использует flush() для получения ID, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             self.session.add(user)
-            await self.session.commit()
+            await self.session.flush()  # Получаем ID, но не коммитим транзакцию
             await self.session.refresh(user)
             logger.info(f"Добавлен новый пользователь {user.id}.")
             return user
         except SQLAlchemyError as e:
-            logger.error(f"SQLAlchemyError in add user {user.id}: {e}", exc_info=True)
-            await self.session.rollback()
+            logger.error(f"SQLAlchemyError in add user: {e}", exc_info=True)
             raise
         except Exception as e:
-            logger.error(f"Неожиданная ошибка при добавлении пользователя {user.id}: {e}", exc_info=True)
-            await self.session.rollback()
+            logger.error(f"Неожиданная ошибка при добавлении пользователя: {e}", exc_info=True)
             raise
 
     async def update(self, user: User) -> User:
+        """Обновляет пользователя в БД.
+        
+        Использует flush() для синхронизации изменений, но не делает commit().
+        Управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
-            await self.session.commit()
+            await self.session.flush()  # Синхронизируем изменения, но не коммитим
             await self.session.refresh(user)
             logger.info(f"Updated user {user.id}.")
             return user
@@ -62,21 +70,23 @@ class UserRepository(IUserRepository):
             logger.error(
                 f"SQLAlchemyError при обновлении пользователя {user.id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при обновлении пользователя {user.id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def delete(self, item_id: Any) -> None:
+        """Удаляет пользователя из БД.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             user = await self.get_by_id(item_id)
             if user:
                 await self.session.delete(user)
-                await self.session.commit()
+                # Не делаем commit() - это сделает middleware/use case
                 logger.info(f"Удалён пользователь {item_id}.")
             else:
                 logger.warning(f"Попытка удалить несуществующего пользователя {item_id}.")
@@ -84,13 +94,11 @@ class UserRepository(IUserRepository):
             logger.error(
                 f"SQLAlchemyError при удалении пользователя {item_id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при удалении пользователя {item_id}: {e}", exc_info=True
             )
-            await self.session.rollback()
             raise
 
     async def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
@@ -137,6 +145,10 @@ class UserRepository(IUserRepository):
     async def save_google_sheet_config(
         self, user_id: int, url: str, spreadsheet_id: str
     ) -> None:
+        """Сохраняет конфигурацию Google Sheet для пользователя.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
         try:
             stmt = (
                 update(User)
@@ -144,19 +156,17 @@ class UserRepository(IUserRepository):
                 .values(google_sheet_url=url, spreadsheet_id=spreadsheet_id)
             )
             await self.session.execute(stmt)
-            await self.session.commit()
+            # Не делаем commit() - это сделает middleware/use case
             logger.info(f"Сохранена конфигурация Google Sheet для пользователя {user_id}.")
         except SQLAlchemyError as e:
             logger.error(
                 f"SQLAlchemyError в save_google_sheet_config для пользователя {user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка в save_google_sheet_config для пользователя {user_id}: {e}",
                 exc_info=True,
             )
-            await self.session.rollback()
             raise

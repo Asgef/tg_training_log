@@ -11,6 +11,7 @@ from src.infrastructure.db.repositories.machine_repository import MachineReposit
 from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
 from src.infrastructure.db.repositories.workout_session_repository import WorkoutSessionRepository
 from src.infrastructure.db.repositories.set_entry_repository import SetEntryRepository
+from src.infrastructure.db.repositories.processed_update_repository import ProcessedUpdateRepository
 from src.application.use_cases.registration import RegistrationUseCase
 from src.application.use_cases.workout import WorkoutUseCase
 from src.application.use_cases.machine_management import MachineManagementUseCase
@@ -64,6 +65,10 @@ class Container(containers.DeclarativeContainer):
 
     set_entry_repository = providers.Factory(
         SetEntryRepository,
+    )
+
+    processed_update_repository = providers.Factory(
+        ProcessedUpdateRepository,
     )
 
     # Services
