@@ -19,6 +19,7 @@ from src.infrastructure.web.middleware.logging import LoggingMiddleware  # Из 
 from src.infrastructure.web.middleware.database import DatabaseMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.dependency_injection import DependencyInjectionMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.idempotency import IdempotencyMiddleware  # Из middleware/ папки
+from src.infrastructure.web.middleware.error_handling import ErrorHandlingMiddleware  # Из middleware/ папки
 
 # Настройка логирования
 setup_logging()
@@ -164,6 +165,10 @@ async def main() -> None:
     # 4. Registration Check (использует зависимости из DependencyInjectionMiddleware)
     dp.message.middleware(RegistrationCheckMiddleware())
     dp.callback_query.middleware(RegistrationCheckMiddleware())
+    
+    # 5. Error Handling (должен быть ПОСЛЕДНИМ, чтобы перехватывать все ошибки)
+    dp.message.middleware(ErrorHandlingMiddleware())
+    dp.callback_query.middleware(ErrorHandlingMiddleware())
     
     # Регистрация роутеров
     dp.include_router(registration.router)

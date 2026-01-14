@@ -172,19 +172,21 @@
 
 ### Обработка ошибок
 
-- [ ] **TASK-019** [P2] Централизовать обработку ошибок
+- [X] **TASK-019** [P2] Централизовать обработку ошибок
   - Создать `handlers/errors.py`
   - Реализовать middleware для глобальной обработки ошибок
   - Добавить кастомные exception классы
   - Стандартизировать сообщения об ошибках
   - **Оценка:** 2 дня
+  - **Статус:** ✅ Выполнено - создан файл `handlers/errors.py` с кастомными exception классами (BaseApplicationError, ValidationError, MachineNotFoundError, WorkoutNotActiveError, WorkoutAlreadyActiveError, ExternalAPIError, UserNotFoundError, PermissionDeniedError, DatabaseError), создан `ErrorHandlingMiddleware` для глобальной обработки ошибок, стандартизированы сообщения об ошибках через класс `ErrorMessages`, middleware интегрирован в main.py (должен быть последним в цепочке)
 
-- [ ] **TASK-020** [P2] Добавить специфичные типы ошибок
+- [X] **TASK-020** [P2] Добавить специфичные типы ошибок
   - `MachineNotFoundError`
   - `WorkoutNotActiveError`
   - `ValidationError`
   - `ExternalAPIError`
   - **Оценка:** 1 день
+  - **Статус:** ✅ Выполнено - все типы ошибок созданы в рамках TASK-019 в файле `handlers/errors.py`: MachineNotFoundError, WorkoutNotActiveError, WorkoutAlreadyActiveError, ValidationError, ExternalAPIError, а также дополнительные: UserNotFoundError, PermissionDeniedError, DatabaseError
 
 ### Типизация
 
