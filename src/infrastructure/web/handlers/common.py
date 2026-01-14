@@ -31,7 +31,19 @@ async def cmd_google_sheets(message: Message) -> None:
 async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContext) -> None:
     try:
         logger.info(f"Пользователь {callback.from_user.id} инициировал настройку Google Sheets.")
-        await callback.message.edit_text("Пожалуйста, предоставьте URL вашей Google Sheet. Убедитесь, что сервисный аккаунт имеет доступ на запись.")
+        await callback.message.edit_text(
+            "📊 Настройка Google Sheets\n\n"
+            "Для подключения таблицы предоставьте доступ сервисному аккаунту и отправьте ссылку на таблицу.\n\n"
+            "📋 Шаги:\n\n"
+            "1️⃣ Откройте вашу Google Таблицу в браузере.\n"
+            "2️⃣ Нажмите кнопку \"Настроить доступ\" (Share) в правом верхнем углу.\n"
+            "3️⃣ В поле \"Добавить людей и группы\" вставьте адрес сервисного аккаунта:\n"
+            "   `tg-training@tgtraining.iam.gserviceaccount.com`\n"
+            "4️⃣ Выберите уровень доступа: \"Редактор\" (Editor).\n"
+            "5️⃣ Нажмите \"Отправить\" (Send).\n"
+            "6️⃣ Скопируйте URL таблицы из адресной строки браузера (формат: `https://docs.google.com/spreadsheets/d/...`) и отправьте его боту.\n\n"
+            "После этого бот сможет экспортировать ваши данные в таблицу."
+        )
         await state.set_state(GoogleSheetsStates.waiting_for_sheet_url)
         await callback.answer()
     except Exception as e:
@@ -84,3 +96,17 @@ async def export_data_to_sheets_callback(callback: CallbackQuery) -> None:
         await callback.message.edit_text(f"Произошла непредвиденная ошибка при экспорте: {e}")
     finally:
         await callback.answer()
+
+
+# Обработчик кнопки меню
+@router.message(F.text == "📊 Google Sheets")
+async def handle_google_sheets_button(message: Message) -> None:
+    """Обработчик кнопки 'Google Sheets'."""
+    await cmd_google_sheets(message)
+
+
+# Обработчик кнопки меню
+@router.message(F.text == "📊 Google Sheets")
+async def handle_google_sheets_button(message: Message) -> None:
+    """Обработчик кнопки 'Google Sheets'."""
+    await cmd_google_sheets(message)

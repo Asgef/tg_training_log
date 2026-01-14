@@ -1,6 +1,6 @@
 import logging
 from typing import Optional
-from src.application.repositories import IWorkoutSessionRepository, ISetEntryRepository
+from src.application.repositories import IWorkoutSessionRepository, ISetEntryRepository, IMachineRepository
 from src.application.use_case_interfaces import IWorkoutUseCase
 from src.domain.models import WorkoutSession, SetEntry
 
@@ -12,12 +12,24 @@ class WorkoutUseCase(IWorkoutUseCase):
         self,
         workout_session_repository: IWorkoutSessionRepository,
         set_entry_repository: ISetEntryRepository,
+        machine_repository: IMachineRepository,
     ):
         self.workout_session_repository = workout_session_repository
         self.set_entry_repository = set_entry_repository
+        self.machine_repository = machine_repository
 
     async def start_new_workout(self, user_id: int) -> Optional[WorkoutSession]:
         try:
+            # Проверка наличия тренажеров у пользователя
+            machines = await self.machine_repository.get_user_machines(
+                user_id, include_archived=False
+            )
+            if not machines:
+                logger.warning(
+                    f"Пользователь {user_id} попытался начать тренировку, но у него нет тренажеров."
+                )
+                raise ValueError("У вас нет тренажеров. Вы не можете начать тренировку. Сначала добавьте тренажеры в меню 'Тренажеры'.")
+
             active_session = (
                 await self.workout_session_repository.get_active_session_for_user(
                     user_id
@@ -32,6 +44,9 @@ class WorkoutUseCase(IWorkoutUseCase):
             new_session = await self.workout_session_repository.start_session(user_id)
             logger.info(f"Пользователь {user_id} начал новую тренировку {new_session.id}.")
             return new_session
+        except ValueError:
+            # Пробрасываем ValueError дальше, чтобы хэндлер мог обработать его
+            raise
         except Exception as e:
             logger.error(f"Ошибка при начале новой тренировки для пользователя {user_id}: {e}")
             return None
@@ -74,6 +89,26 @@ class WorkoutUseCase(IWorkoutUseCase):
                 )
                 return None
 
+            # Проверка существования тренажера и принадлежности пользователю
+            machine = await self.machine_repository.get_by_id(machine_id)
+            if not machine:
+                logger.warning(
+                    f"Пользователь {user_id} попытался записать подход на несуществующий тренажер {machine_id}."
+                )
+                raise ValueError(f"Тренажер с ID {machine_id} не найден.")
+            
+            if machine.user_id != user_id:
+                logger.warning(
+                    f"Пользователь {user_id} попытался записать подход на тренажер {machine_id}, принадлежащий другому пользователю."
+                )
+                raise ValueError(f"Тренажер с ID {machine_id} не принадлежит вам.")
+            
+            if machine.is_archived:
+                logger.warning(
+                    f"Пользователь {user_id} попытался записать подход на архивированный тренажер {machine_id}."
+                )
+                raise ValueError(f"Тренажер с ID {machine_id} архивирован и недоступен для записи подходов.")
+
             if weight <= 0 or reps <= 0:
                 logger.warning(
                     f"Пользователь {user_id} предоставил неверные данные подхода: вес={weight}, повторы={reps}."
@@ -92,6 +127,9 @@ class WorkoutUseCase(IWorkoutUseCase):
                 f"Пользователь {user_id} записал подход {new_set_entry.id} для сессии {active_session.id}."
             )
             return new_set_entry
+        except ValueError:
+            # Пробрасываем ValueError дальше, чтобы хэндлер мог обработать его
+            raise
         except Exception as e:
             logger.error(f"Ошибка при записи подхода для пользователя {user_id}: {e}")
             return None

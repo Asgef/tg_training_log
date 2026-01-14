@@ -2,7 +2,14 @@
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -14,19 +21,44 @@ router = Router()
 
 ADMIN_IDS = config.admin_ids
 
+
+def get_main_menu() -> ReplyKeyboardMarkup:
+    """Создает главное меню с кнопками для зарегистрированных пользователей."""
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="🏋️ Начать тренировку"),
+                KeyboardButton(text="✅ Завершить тренировку"),
+            ],
+            [
+                KeyboardButton(text="📝 Записать подход"),
+                KeyboardButton(text="💪 Тренажеры"),
+            ],
+            [
+                KeyboardButton(text="📊 Google Sheets"),
+            ],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите действие из меню",
+    )
+    return keyboard
+
 class RegistrationStates(StatesGroup):
     waiting_for_description = State()
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext) -> None:
+async def cmd_start(message: Message, state: FSMContext = None) -> None:
     try:
         user_telegram_id = message.from_user.id
         user = await user_repository.get_by_telegram_id(user_telegram_id)
 
         if user and user.is_registered:
             logger.info(f"Пользователь {user_telegram_id} уже зарегистрирован и использовал /start.")
-            await message.answer(f"С возвращением, {message.from_user.full_name}! Вы уже зарегистрированы.")
+            await message.answer(
+                f"С возвращением, {message.from_user.full_name}! Вы уже зарегистрированы.",
+                reply_markup=get_main_menu(),
+            )
         elif user and not user.is_registered:
             logger.info(f"Пользователь {user_telegram_id} ожидает одобрения администратора и использовал /start.")
             await message.answer("Ваш запрос на регистрацию ожидает одобрения администратором.")
@@ -115,7 +147,11 @@ async def admin_approve_request(callback: CallbackQuery, bot: Bot) -> None:
         if success:
             await callback.message.edit_text(f"Запрос от пользователя {user_id} одобрен.")
             try:
-                await bot.send_message(chat_id=user_id, text="Ваша регистрация одобрена! Теперь вы можете пользоваться ботом.")
+                await bot.send_message(
+                    chat_id=user_id,
+                    text="Ваша регистрация одобрена! Теперь вы можете пользоваться ботом.",
+                    reply_markup=get_main_menu(),
+                )
                 logger.info(f"Пользователь {user_id} уведомлён об одобренной регистрации.")
             except Exception as e:
                 logger.error(f"Не удалось уведомить пользователя {user_id} об одобренной регистрации: {e}", exc_info=True)
@@ -158,3 +194,23 @@ async def admin_reject_request(callback: CallbackQuery, bot: Bot) -> None:
         await callback.message.answer("Произошла ошибка при отклонении запроса.")
     finally:
         await callback.answer()
+
+
+@router.message(Command("menu"))
+async def cmd_menu(message: Message) -> None:
+    """Показывает главное меню."""
+    try:
+        user_telegram_id = message.from_user.id
+        user = await user_repository.get_by_telegram_id(user_telegram_id)
+        
+        if user and user.is_registered:
+            await message.answer(
+                "Главное меню:",
+                reply_markup=get_main_menu(),
+            )
+        else:
+            await message.answer("Для использования бота вам необходимо зарегистрироваться.")
+    except Exception as e:
+        logger.error(f"Ошибка в cmd_menu для пользователя {message.from_user.id}: {e}", exc_info=True)
+        await message.answer("Произошла ошибка при отображении меню.")
+

@@ -251,3 +251,10 @@ async def process_edit_machine_name(message: Message, state: FSMContext) -> None
                 [InlineKeyboardButton(text="Назад к списку", callback_data="list_machines")]
             ])
             await message.answer(text, reply_markup=keyboard)
+
+
+# Обработчик кнопки меню
+@router.message(F.text == "💪 Тренажеры")
+async def handle_machines_button(message: Message) -> None:
+    """Обработчик кнопки 'Тренажеры'."""
+    await cmd_machines(message)

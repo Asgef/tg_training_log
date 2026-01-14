@@ -1,6 +1,6 @@
 # ruff: noqa: F821
 import logging
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
@@ -27,6 +27,9 @@ async def cmd_workout_start(message: Message) -> None:
         else:
             logger.warning(f"Пользователь {user_id} не смог начать новую тренировку; активная сессия уже существует.")
             await message.answer("У вас уже есть активная тренировка. Завершите ее, прежде чем начинать новую.")
+    except ValueError as e:
+        logger.warning(f"Пользователь {message.from_user.id} не может начать тренировку: {e}")
+        await message.answer(str(e))
     except Exception as e:
         logger.error(f"Ошибка в cmd_workout_start для пользователя {message.from_user.id}: {e}", exc_info=True)
         await message.answer("Произошла ошибка при начале тренировки.")
@@ -92,3 +95,36 @@ async def process_set_data(message: Message, state: FSMContext) -> None:
     finally:
         await state.clear()
         logger.debug(f"Состояние очищено для пользователя {user_id}.")
+
+
+# Обработчики кнопок меню
+@router.message(F.text == "🏋️ Начать тренировку")
+async def handle_start_workout_button(message: Message) -> None:
+    """Обработчик кнопки 'Начать тренировку'."""
+    try:
+        user_id = message.from_user.id
+        session = await workout_use_case.start_new_workout(user_id)
+        if session:
+            logger.info(f"Пользователь {user_id} успешно начал новую тренировку {session.id}.")
+            await message.answer("Тренировка начата! Теперь вы можете записывать подходы.")
+        else:
+            logger.warning(f"Пользователь {user_id} не смог начать новую тренировку; активная сессия уже существует.")
+            await message.answer("У вас уже есть активная тренировка. Завершите ее, прежде чем начинать новую.")
+    except ValueError as e:
+        logger.warning(f"Пользователь {message.from_user.id} не может начать тренировку: {e}")
+        await message.answer(str(e))
+    except Exception as e:
+        logger.error(f"Ошибка в handle_start_workout_button для пользователя {message.from_user.id}: {e}", exc_info=True)
+        await message.answer("Произошла ошибка при начале тренировки.")
+
+
+@router.message(F.text == "✅ Завершить тренировку")
+async def handle_end_workout_button(message: Message) -> None:
+    """Обработчик кнопки 'Завершить тренировку'."""
+    await cmd_workout_end(message)
+
+
+@router.message(F.text == "📝 Записать подход")
+async def handle_record_set_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Записать подход'."""
+    await cmd_record_set(message, state)

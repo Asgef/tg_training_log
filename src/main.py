@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 
 # Импорт модулей проекта
 from src.configs.logging_config import setup_logging
@@ -84,7 +85,7 @@ async def main() -> None:
 
         registration_use_case_instance = RegistrationUseCase(user_repo_instance)
         workout_use_case_instance = WorkoutUseCase(
-            workout_session_repo_instance, set_entry_repo_instance
+            workout_session_repo_instance, set_entry_repo_instance, machine_repo_instance
         )
         machine_management_use_case_instance = MachineManagementUseCase(
             machine_repo_instance, muscle_repo_instance
@@ -115,6 +116,17 @@ async def main() -> None:
     dp.include_router(workout.router)
     dp.include_router(machine.router)
     dp.include_router(common.router)  # Регистрация общего роутера
+
+    # Настройка команд бота
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Главное меню"),
+        BotCommand(command="menu", description="Показать меню"),
+        BotCommand(command="workout_start", description="Начать тренировку"),
+        BotCommand(command="workout_end", description="Завершить тренировку"),
+        BotCommand(command="record_set", description="Записать подход"),
+        BotCommand(command="machines", description="Управление тренажерами"),
+        BotCommand(command="google_sheets", description="Настройка Google Sheets"),
+    ])
 
     logger.info("Бот начал polling")
     await dp.start_polling(bot)
