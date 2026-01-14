@@ -106,7 +106,7 @@
 
 ### Метрики
 
-- [ ] **TASK-012** [P1] Добавить Prometheus метрики
+- [ ] **TASK-012** [P1] Добавить Prometheus метрики / ПРОПУСКАЕМ
   - Установить `prometheus-client`
   - Создать endpoint `/metrics`
   - Добавить бизнес-метрики:
@@ -119,7 +119,7 @@
     - Размер очередей
   - **Оценка:** 2 дня
 
-- [ ] **TASK-013** [P1] Интегрировать Sentry для error tracking
+- [ ] **TASK-013** [P1] Интегрировать Sentry для error tracking / Пропускаем
   - Установить `sentry-sdk`
   - Настроить Sentry в production
   - Добавить breadcrumbs для отладки
@@ -128,18 +128,20 @@
 
 ### DTO слой
 
-- [ ] **TASK-014** [P1] Создать DTO модели
+- [X] **TASK-014** [P1] Создать DTO модели
   - Создать `src/application/dto/`
   - Определить DTO для User, Machine, Workout, SetEntry
   - Использовать Pydantic для валидации
   - Добавить методы конвертации domain ↔ DTO
   - **Оценка:** 2-3 дня
+  - **Статус:** ✅ Выполнено - созданы DTO модели для User, Machine, Muscle, MuscleGroup, WorkoutSession, SetEntry с валидацией через Pydantic, добавлены конвертеры domain ↔ DTO, добавлен pydantic в зависимости
 
-- [ ] **TASK-015** [P1] Рефакторить handlers для использования DTO
+- [X] **TASK-015** [P1] Рефакторить handlers для использования DTO
   - Заменить использование domain моделей на DTO
   - Валидировать входные данные через Pydantic
   - **Зависит от:** TASK-014
   - **Оценка:** 3-4 дня
+  - **Статус:** ✅ Выполнено - обновлены use case interfaces для возврата DTO, use cases конвертируют domain → DTO, handlers используют DTO через use cases, добавлена валидация входных данных через Pydantic DTO (SetEntryInputDTO, MachineInputDTO, RegistrationInputDTO)
 
 ---
 

@@ -3,6 +3,12 @@ from typing import Optional
 from src.application.repositories import IWorkoutSessionRepository, ISetEntryRepository, IMachineRepository
 from src.application.use_case_interfaces import IWorkoutUseCase
 from src.domain.models import WorkoutSession, SetEntry
+from src.application.dto import (
+    WorkoutSessionDTO,
+    SetEntryDTO,
+    workout_session_to_dto,
+    set_entry_to_dto,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -18,7 +24,7 @@ class WorkoutUseCase(IWorkoutUseCase):
         self.set_entry_repository = set_entry_repository
         self.machine_repository = machine_repository
 
-    async def start_new_workout(self, user_id: int) -> Optional[WorkoutSession]:
+    async def start_new_workout(self, user_id: int) -> Optional[WorkoutSessionDTO]:
         try:
             # Проверка наличия тренажеров у пользователя
             machines = await self.machine_repository.get_user_machines(
@@ -46,7 +52,7 @@ class WorkoutUseCase(IWorkoutUseCase):
 
             new_session = await self.workout_session_repository.start_session(user_id)
             logger.info("Пользователь начал новую тренировку.", user_id=user_id, session_id=new_session.id)
-            return new_session
+            return workout_session_to_dto(new_session)
         except ValueError:
             # Пробрасываем ValueError дальше, чтобы хэндлер мог обработать его
             raise
@@ -54,7 +60,7 @@ class WorkoutUseCase(IWorkoutUseCase):
             logger.error("Ошибка при начале новой тренировки", user_id=user_id, error=str(e), exc_info=True)
             return None
 
-    async def end_current_workout(self, user_id: int) -> Optional[WorkoutSession]:
+    async def end_current_workout(self, user_id: int) -> Optional[WorkoutSessionDTO]:
         try:
             active_session = (
                 await self.workout_session_repository.get_active_session_for_user(
@@ -73,14 +79,14 @@ class WorkoutUseCase(IWorkoutUseCase):
                 active_session.id
             )
             logger.info("Пользователь завершил тренировку.", user_id=user_id, session_id=active_session.id)
-            return ended_session
+            return workout_session_to_dto(ended_session)
         except Exception as e:
             logger.error("Ошибка при завершении тренировки", user_id=user_id, error=str(e), exc_info=True)
             return None
 
     async def record_set(
         self, user_id: int, machine_id: int, weight: float, reps: int, failure: bool
-    ) -> Optional[SetEntry]:
+    ) -> Optional[SetEntryDTO]:
         try:
             active_session = (
                 await self.workout_session_repository.get_active_session_for_user(
@@ -147,7 +153,7 @@ class WorkoutUseCase(IWorkoutUseCase):
                 weight=weight,
                 reps=reps,
             )
-            return new_set_entry
+            return set_entry_to_dto(new_set_entry)
         except ValueError:
             # Пробрасываем ValueError дальше, чтобы хэндлер мог обработать его
             raise
@@ -157,11 +163,14 @@ class WorkoutUseCase(IWorkoutUseCase):
 
     async def get_active_workout_session(
         self, user_id: int
-    ) -> Optional[WorkoutSession]:
+    ) -> Optional[WorkoutSessionDTO]:
         try:
-            return await self.workout_session_repository.get_active_session_for_user(
+            session = await self.workout_session_repository.get_active_session_for_user(
                 user_id
             )
+            if session:
+                return workout_session_to_dto(session)
+            return None
         except Exception as e:
             logger.error(
                 "Ошибка при получении активной тренировки",

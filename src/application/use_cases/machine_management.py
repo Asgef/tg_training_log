@@ -3,6 +3,14 @@ from typing import Optional, List
 from src.application.repositories import IMachineRepository, IMuscleRepository
 from src.application.use_case_interfaces import IMachineManagementUseCase
 from src.domain.models import Machine, Muscle, MuscleGroup
+from src.application.dto import (
+    MachineDTO,
+    MuscleDTO,
+    MuscleGroupDTO,
+    machine_to_dto,
+    muscle_to_dto,
+    muscle_group_to_dto,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +30,7 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         name: str,
         photo_file_id: Optional[str],
         muscle_ids: List[int],
-    ) -> Machine:
+    ) -> MachineDTO:
         try:
             if not name or len(name.strip()) == 0:
                 logger.warning(f"Пользователь {user_id} попытался добавить тренажёр с пустым названием.")
@@ -61,32 +69,32 @@ class MachineManagementUseCase(IMachineManagementUseCase):
             logger.info(
                 f"Пользователь {user_id} добавил тренажёр {created_machine.id} ({created_machine.name})."
             )
-            return created_machine
+            return machine_to_dto(created_machine)
         except Exception as e:
             logger.error(f"Ошибка при добавлении тренажёра для пользователя {user_id}: {e}")
             raise
 
-    async def get_user_machines(self, user_id: int) -> List[Machine]:
+    async def get_user_machines(self, user_id: int) -> List[MachineDTO]:
         try:
             machines = await self.machine_repository.get_user_machines(
                 user_id, include_archived=False
             )
             logger.debug(f"Пользователь {user_id} получил {len(machines)} тренажёров.")
-            return machines
+            return [machine_to_dto(machine) for machine in machines]
         except Exception as e:
             logger.error(f"Ошибка при получении тренажёров для пользователя {user_id}: {e}")
             return []
 
     async def get_machine_details(
         self, user_id: int, machine_id: int
-    ) -> Optional[Machine]:
+    ) -> Optional[MachineDTO]:
         try:
             machine = await self.machine_repository.get_by_id(machine_id)
             if machine and machine.user_id == user_id:
                 logger.debug(
                     f"Пользователь {user_id} получил детали тренажёра {machine_id}."
                 )
-                return machine
+                return machine_to_dto(machine)
             logger.warning(
                 f"Пользователь {user_id} попытался получить доступ к несуществующему или неавторизованному тренажёру {machine_id}."
             )
@@ -105,7 +113,7 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         photo_file_id: Optional[str],
         muscle_ids: Optional[List[int]],
         is_archived: Optional[bool],
-    ) -> Optional[Machine]:
+    ) -> Optional[MachineDTO]:
         try:
             machine = await self.machine_repository.get_by_id(machine_id)
             if not machine or machine.user_id != user_id:
@@ -153,7 +161,7 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                 updated_machine = await self.machine_repository.get_by_id(machine_id)
             
             logger.info(f"Пользователь {user_id} обновил тренажёр {machine_id}.")
-            return updated_machine
+            return machine_to_dto(updated_machine)
         except Exception as e:
             logger.error(f"Ошибка при обновлении тренажёра {machine_id} для пользователя {user_id}: {e}")
             raise
@@ -185,56 +193,60 @@ class MachineManagementUseCase(IMachineManagementUseCase):
             logger.error(f"Ошибка при проверке существования тренажёра '{name}' для пользователя {user_id}: {e}")
             return False
 
-    async def get_all_muscle_groups(self) -> List[MuscleGroup]:
+    async def get_all_muscle_groups(self) -> List[MuscleGroupDTO]:
         """Получает все группы мышц."""
         try:
             groups = await self.muscle_repository.get_all_muscle_groups()
-            return groups
+            return [muscle_group_to_dto(group) for group in groups]
         except Exception as e:
             logger.error(f"Ошибка при получении групп мышц: {e}")
             return []
 
-    async def get_muscles_by_group_id(self, group_id: int) -> List[Muscle]:
+    async def get_muscles_by_group_id(self, group_id: int) -> List[MuscleDTO]:
         """Получает мышцы по ID группы."""
         try:
             muscles = await self.muscle_repository.get_muscles_by_group_id(group_id)
-            return muscles
+            return [muscle_to_dto(muscle) for muscle in muscles]
         except Exception as e:
             logger.error(f"Ошибка при получении мышц группы {group_id}: {e}")
             return []
 
-    async def get_muscle_group_by_id(self, group_id: int) -> Optional[MuscleGroup]:
+    async def get_muscle_group_by_id(self, group_id: int) -> Optional[MuscleGroupDTO]:
         """Получает группу мышц по ID."""
         try:
             group = await self.muscle_repository.get_muscle_group_by_id(group_id)
-            return group
+            if group:
+                return muscle_group_to_dto(group)
+            return None
         except Exception as e:
             logger.error(f"Ошибка при получении группы мышц {group_id}: {e}")
             return None
 
-    async def get_all_muscles(self) -> List[Muscle]:
+    async def get_all_muscles(self) -> List[MuscleDTO]:
         """Получает все мышцы."""
         try:
             muscles = await self.muscle_repository.get_all_muscles()
-            return muscles
+            return [muscle_to_dto(muscle) for muscle in muscles]
         except Exception as e:
             logger.error(f"Ошибка при получении всех мышц: {e}")
             return []
 
-    async def get_muscles_by_ids(self, muscle_ids: List[int]) -> List[Muscle]:
+    async def get_muscles_by_ids(self, muscle_ids: List[int]) -> List[MuscleDTO]:
         """Получает мышцы по списку ID."""
         try:
             muscles = await self.muscle_repository.get_muscles_by_ids(muscle_ids)
-            return muscles
+            return [muscle_to_dto(muscle) for muscle in muscles]
         except Exception as e:
             logger.error(f"Ошибка при получении мышц по ID {muscle_ids}: {e}")
             return []
 
-    async def get_muscle_by_id(self, muscle_id: int) -> Optional[Muscle]:
+    async def get_muscle_by_id(self, muscle_id: int) -> Optional[MuscleDTO]:
         """Получает мышцу по ID."""
         try:
             muscle = await self.muscle_repository.get_by_id(muscle_id)
-            return muscle
+            if muscle:
+                return muscle_to_dto(muscle)
+            return None
         except Exception as e:
             logger.error(f"Ошибка при получении мышцы {muscle_id}: {e}")
             return None

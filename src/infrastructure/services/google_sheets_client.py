@@ -81,7 +81,7 @@ def retry_google_sheets_operation(func: F) -> F:
         reraise=True,
         before_sleep=lambda retry_state: logger.warning(
             "Повторная попытка Google Sheets API",
-            event="google_sheets_api_retry",
+            event_type="google_sheets_api_retry",
             attempt=retry_state.attempt_number,
             max_attempts=MAX_RETRY_ATTEMPTS,
             function=func.__name__,
@@ -101,7 +101,7 @@ class GoogleSheetsClient:
             if not config.google_credentials_json:
                 logger.error(
                     "Переменная окружения GOOGLE_CREDENTIALS_JSON не установлена",
-                    event="google_sheets_init_error",
+                    event_type="google_sheets_init_error",
                     error="missing_credentials",
                 )
                 raise ValueError(
@@ -123,14 +123,14 @@ class GoogleSheetsClient:
             self.gc.set_timeout((CONNECT_TIMEOUT, READ_TIMEOUT))
             logger.info(
                 "GoogleSheetsClient успешно инициализирован",
-                event="google_sheets_client_initialized",
+                event_type="google_sheets_client_initialized",
                 connect_timeout=CONNECT_TIMEOUT,
                 read_timeout=READ_TIMEOUT,
             )
         except Exception as e:
             logger.critical(
                 "Не удалось инициализировать GoogleSheetsClient",
-                event="google_sheets_init_error",
+                event_type="google_sheets_init_error",
                 error=str(e),
                 exc_info=True,
             )
@@ -142,14 +142,14 @@ class GoogleSheetsClient:
             spreadsheet = self.gc.open_by_key(spreadsheet_id)
             logger.debug(
                 "Открыта Google таблица",
-                event="google_sheets_spreadsheet_opened",
+                event_type="google_sheets_spreadsheet_opened",
                 spreadsheet_id=spreadsheet_id,
             )
             return spreadsheet
         except gspread.exceptions.SpreadsheetNotFound:
             logger.warning(
                 "Таблица не найдена",
-                event="google_sheets_api_error",
+                event_type="google_sheets_api_error",
                 error_type="SpreadsheetNotFound",
                 spreadsheet_id=spreadsheet_id,
             )
@@ -157,7 +157,7 @@ class GoogleSheetsClient:
         except gspread.exceptions.APIError as e:
             logger.error(
                 "Ошибка Google Sheets API при открытии таблицы",
-                event="google_sheets_api_error",
+                event_type="google_sheets_api_error",
                 error_type="APIError",
                 spreadsheet_id=spreadsheet_id,
                 error_code=getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None,
@@ -168,7 +168,7 @@ class GoogleSheetsClient:
         except Exception as e:
             logger.error(
                 "Неожиданная ошибка при открытии таблицы",
-                event="google_sheets_error",
+                event_type="google_sheets_error",
                 spreadsheet_id=spreadsheet_id,
                 error=str(e),
                 exc_info=True,
@@ -185,12 +185,12 @@ class GoogleSheetsClient:
                 worksheet.insert_row(headers, 1)
                 logger.info(
                     "Созданы заголовки в листе",
-                    event="google_sheets_headers_created",
+                    event_type="google_sheets_headers_created",
                     worksheet_name=worksheet_name,
                 )
             logger.debug(
                 "Получен/Создан лист",
-                event="google_sheets_worksheet_accessed",
+                event_type="google_sheets_worksheet_accessed",
                 worksheet_name=worksheet_name,
             )
             return worksheet
@@ -201,14 +201,14 @@ class GoogleSheetsClient:
             worksheet.insert_row(headers, 1)
             logger.info(
                 "Лист создан с заголовками",
-                event="google_sheets_worksheet_created",
+                event_type="google_sheets_worksheet_created",
                 worksheet_name=worksheet_name,
             )
             return worksheet
         except gspread.exceptions.APIError as e:
             logger.error(
                 "Ошибка Google Sheets API при получении/создании листа",
-                event="google_sheets_api_error",
+                event_type="google_sheets_api_error",
                 error_type="APIError",
                 worksheet_name=worksheet_name,
                 error_code=getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None,
@@ -221,7 +221,7 @@ class GoogleSheetsClient:
         except Exception as e:
             logger.error(
                 "Ошибка при получении/создании листа",
-                event="google_sheets_error",
+                event_type="google_sheets_error",
                 worksheet_name=worksheet_name,
                 error=str(e),
                 exc_info=True,
@@ -246,7 +246,7 @@ class GoogleSheetsClient:
             worksheet.append_rows(data)
             logger.info(
                 "Добавлены строки в Google Sheets",
-                event="google_sheets_data_appended",
+                event_type="google_sheets_data_appended",
                 spreadsheet_id=spreadsheet_id,
                 worksheet_name=worksheet_name,
                 rows_count=len(data),
@@ -254,7 +254,7 @@ class GoogleSheetsClient:
         except gspread.exceptions.APIError as e:
             logger.error(
                 "Ошибка Google Sheets API при добавлении данных",
-                event="google_sheets_api_error",
+                event_type="google_sheets_api_error",
                 error_type="APIError",
                 spreadsheet_id=spreadsheet_id,
                 worksheet_name=worksheet_name,
@@ -266,7 +266,7 @@ class GoogleSheetsClient:
         except Exception as e:
             logger.error(
                 "Ошибка при добавлении данных в Google Sheets",
-                event="google_sheets_error",
+                event_type="google_sheets_error",
                 spreadsheet_id=spreadsheet_id,
                 worksheet_name=worksheet_name,
                 error=str(e),
@@ -316,7 +316,7 @@ class GoogleSheetsClient:
                 )
                 logger.info(
                     "Обновлено/добавлено строк в Google Sheets",
-                    event="google_sheets_data_upserted",
+                    event_type="google_sheets_data_upserted",
                     spreadsheet_id=spreadsheet_id,
                     worksheet_name=worksheet_name,
                     rows_count=len(df),
@@ -327,7 +327,7 @@ class GoogleSheetsClient:
                 worksheet.update([df.columns.values.tolist()] + df.values.tolist())
                 logger.info(
                     "Записаны новые строки в Google Sheets",
-                    event="google_sheets_data_inserted",
+                    event_type="google_sheets_data_inserted",
                     spreadsheet_id=spreadsheet_id,
                     worksheet_name=worksheet_name,
                     rows_count=len(df),
@@ -335,7 +335,7 @@ class GoogleSheetsClient:
         except gspread.exceptions.APIError as e:
             logger.error(
                 "Ошибка Google Sheets API при обновлении/добавлении dataframe",
-                event="google_sheets_api_error",
+                event_type="google_sheets_api_error",
                 error_type="APIError",
                 spreadsheet_id=spreadsheet_id,
                 worksheet_name=worksheet_name,
@@ -347,7 +347,7 @@ class GoogleSheetsClient:
         except Exception as e:
             logger.error(
                 "Ошибка при обновлении/добавлении dataframe в Google Sheets",
-                event="google_sheets_error",
+                event_type="google_sheets_error",
                 spreadsheet_id=spreadsheet_id,
                 worksheet_name=worksheet_name,
                 error=str(e),

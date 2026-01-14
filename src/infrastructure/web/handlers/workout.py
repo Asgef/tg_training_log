@@ -5,8 +5,10 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from pydantic import ValidationError
 
 from src.application.use_case_interfaces import IWorkoutUseCase
+from src.application.dto import SetEntryInputDTO
 
 logger = structlog.get_logger(__name__)
 
@@ -29,7 +31,7 @@ async def cmd_workout_start(
         if session:
             logger.info(
                 "Пользователь успешно начал новую тренировку",
-                event="workout_started",
+                event_type="workout_started",
                 user_id=user_id,
                 session_id=session.id,
             )
@@ -37,7 +39,7 @@ async def cmd_workout_start(
         else:
             logger.warning(
                 "Пользователь не смог начать новую тренировку; активная сессия уже существует",
-                event="workout_start_failed",
+                event_type="workout_start_failed",
                 user_id=user_id,
                 reason="active_session_exists",
             )
@@ -45,7 +47,7 @@ async def cmd_workout_start(
     except ValueError as e:
         logger.warning(
             "Пользователь не может начать тренировку",
-            event="workout_start_validation_error",
+            event_type="workout_start_validation_error",
             user_id=message.from_user.id,
             error=str(e),
         )
@@ -53,7 +55,7 @@ async def cmd_workout_start(
     except Exception as e:
         logger.error(
             "Ошибка в cmd_workout_start",
-            event="workout_start_error",
+            event_type="workout_start_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,
@@ -72,7 +74,7 @@ async def cmd_workout_end(
         if session:
             logger.info(
                 "Пользователь успешно завершил тренировку",
-                event="workout_ended",
+                event_type="workout_ended",
                 user_id=user_id,
                 session_id=session.id,
             )
@@ -80,7 +82,7 @@ async def cmd_workout_end(
         else:
             logger.warning(
                 "Пользователь не смог завершить тренировку; активная сессия не найдена",
-                event="workout_end_failed",
+                event_type="workout_end_failed",
                 user_id=user_id,
                 reason="no_active_session",
             )
@@ -88,7 +90,7 @@ async def cmd_workout_end(
     except Exception as e:
         logger.error(
             "Ошибка в cmd_workout_end",
-            event="workout_end_error",
+            event_type="workout_end_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,
@@ -108,7 +110,7 @@ async def cmd_record_set(
         if not active_session:
             logger.warning(
                 "Пользователь попытался записать подход без активной тренировки",
-                event="set_record_attempt_no_session",
+                event_type="set_record_attempt_no_session",
                 user_id=user_id,
             )
             await message.answer("Для записи подхода сначала начните тренировку (команда /workout_start).")
@@ -118,13 +120,13 @@ async def cmd_record_set(
         await state.set_state(WorkoutStates.waiting_for_set_data)
         logger.info(
             "Пользователь перешёл в состояние waiting_for_set_data",
-            event="set_record_state_entered",
+            event_type="set_record_state_entered",
             user_id=user_id,
         )
     except Exception as e:
         logger.error(
             "Ошибка в cmd_record_set",
-            event="set_record_preparation_error",
+            event_type="set_record_preparation_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,
@@ -149,34 +151,61 @@ async def process_set_data(
         reps = int(parts[2])
         failure = bool(int(parts[3]))
 
-        set_entry = await workout_use_case.record_set(user_id, machine_id, weight, reps, failure)
-        if set_entry:
-            logger.info(
-                "Пользователь успешно записал подход",
-                event="set_recorded",
-                user_id=user_id,
-                set_entry_id=set_entry.id,
+        # Валидация через Pydantic DTO
+        try:
+            set_input = SetEntryInputDTO(
                 machine_id=machine_id,
                 weight=weight,
                 reps=reps,
                 failure=failure,
             )
-            await message.answer(f"Подход записан: {weight}кг x {reps} на тренажере {machine_id}.")
+        except ValidationError as e:
+            error_messages = "; ".join([err["msg"] for err in e.errors()])
+            logger.warning(
+                "Пользователь предоставил невалидные данные подхода",
+                event_type="set_record_validation_error",
+                user_id=user_id,
+                input_text=message.text,
+                errors=error_messages,
+            )
+            await message.answer(f"Ошибка валидации: {error_messages}. Попробуйте еще раз.")
+            await state.clear()
+            return
+
+        set_entry = await workout_use_case.record_set(
+            user_id,
+            set_input.machine_id,
+            set_input.weight,
+            set_input.reps,
+            set_input.failure,
+        )
+        if set_entry:
+            logger.info(
+                "Пользователь успешно записал подход",
+                event_type="set_recorded",
+                user_id=user_id,
+                set_entry_id=set_entry.id,
+                machine_id=set_input.machine_id,
+                weight=set_input.weight,
+                reps=set_input.reps,
+                failure=set_input.failure,
+            )
+            await message.answer(f"Подход записан: {set_input.weight}кг x {set_input.reps} на тренажере {set_input.machine_id}.")
         else:
             logger.warning(
                 "Пользователь не смог записать подход",
-                event="set_record_failed",
+                event_type="set_record_failed",
                 user_id=user_id,
-                machine_id=machine_id,
-                weight=weight,
-                reps=reps,
-                failure=failure,
+                machine_id=set_input.machine_id,
+                weight=set_input.weight,
+                reps=set_input.reps,
+                failure=set_input.failure,
             )
             await message.answer("Не удалось записать подход. Убедитесь, что у вас активна тренировка и данные верны.")
     except ValueError as e:
         logger.warning(
             "Пользователь предоставил неверный формат данных подхода",
-            event="set_record_validation_error",
+            event_type="set_record_validation_error",
             user_id=user_id,
             input_text=message.text,
             error=str(e),
@@ -185,7 +214,7 @@ async def process_set_data(
     except Exception as e:
         logger.error(
             "Неожиданная ошибка в process_set_data",
-            event="set_record_error",
+            event_type="set_record_error",
             user_id=user_id,
             input_text=message.text,
             error=str(e),
@@ -209,7 +238,7 @@ async def handle_start_workout_button(
         if session:
             logger.info(
                 "Пользователь успешно начал новую тренировку через кнопку",
-                event="workout_started",
+                event_type="workout_started",
                 user_id=user_id,
                 session_id=session.id,
                 source="button",
@@ -218,7 +247,7 @@ async def handle_start_workout_button(
         else:
             logger.warning(
                 "Пользователь не смог начать новую тренировку через кнопку; активная сессия уже существует",
-                event="workout_start_failed",
+                event_type="workout_start_failed",
                 user_id=user_id,
                 reason="active_session_exists",
                 source="button",
@@ -227,7 +256,7 @@ async def handle_start_workout_button(
     except ValueError as e:
         logger.warning(
             "Пользователь не может начать тренировку через кнопку",
-            event="workout_start_validation_error",
+            event_type="workout_start_validation_error",
             user_id=message.from_user.id,
             error=str(e),
             source="button",
@@ -236,7 +265,7 @@ async def handle_start_workout_button(
     except Exception as e:
         logger.error(
             "Ошибка в handle_start_workout_button",
-            event="workout_start_error",
+            event_type="workout_start_error",
             user_id=message.from_user.id,
             error=str(e),
             source="button",

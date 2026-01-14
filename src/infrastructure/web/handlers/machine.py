@@ -6,8 +6,10 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.exceptions import TelegramBadRequest
+from pydantic import ValidationError
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
+from src.application.dto import MachineInputDTO, MachineUpdateInputDTO
 
 logger = logging.getLogger(__name__)
 
@@ -83,29 +85,35 @@ async def process_machine_name(
     machine_management_use_case: IMachineManagementUseCase,
 ) -> None:
     user_id = message.from_user.id
-    machine_name = message.text.strip()
     
     try:
-        if not machine_name:
-            logger.warning(f"Пользователь {user_id} отправил пустое название тренажёра.")
-            await message.answer("Название тренажера не может быть пустым. Попробуйте еще раз.")
+        # Валидация через Pydantic DTO
+        try:
+            machine_input = MachineInputDTO(name=message.text)
+        except ValidationError as e:
+            error_messages = "; ".join([err["msg"] for err in e.errors()])
+            logger.warning(
+                f"Пользователь {user_id} отправил невалидное название тренажёра.",
+                errors=error_messages,
+            )
+            await message.answer(f"Ошибка валидации: {error_messages}. Попробуйте еще раз.")
             return
 
-        machine_exists = await machine_management_use_case.check_machine_name_exists(user_id, machine_name)
+        machine_exists = await machine_management_use_case.check_machine_name_exists(user_id, machine_input.name)
         if machine_exists:
-            logger.warning(f"Пользователь {user_id} попытался добавить дублирующееся название тренажёра: {machine_name}")
-            await message.answer(f"Тренажер с названием '{machine_name}' уже существует. Попробуйте другое название.")
+            logger.warning(f"Пользователь {user_id} попытался добавить дублирующееся название тренажёра: {machine_input.name}")
+            await message.answer(f"Тренажер с названием '{machine_input.name}' уже существует. Попробуйте другое название.")
             return
 
         # Сохраняем название в FSM и переходим к выбору мышц
-        await state.update_data(machine_name=machine_name, selected_muscle_ids=[])
+        await state.update_data(machine_name=machine_input.name, selected_muscle_ids=[])
         
         # Получаем группы мышц
         muscle_groups = await machine_management_use_case.get_all_muscle_groups()
         
         if not muscle_groups:
             logger.warning(f"В базе данных нет групп мышц. Создаю тренажер без мышц.")
-            new_machine = await machine_management_use_case.add_machine(user_id, machine_name, None, [])
+            new_machine = await machine_management_use_case.add_machine(user_id, machine_input.name, None, [])
             logger.info(f"Пользователь {user_id} успешно добавил тренажёр {new_machine.id} ({new_machine.name}).")
             await message.answer(f"Тренажер '{new_machine.name}' успешно добавлен! (В базе данных пока нет групп мышц)")
             await state.clear()
@@ -115,12 +123,12 @@ async def process_machine_name(
         keyboard = await _build_muscle_groups_keyboard_for_creation(muscle_groups, [], machine_management_use_case)
         
         await message.answer(
-            f"Тренажер '{machine_name}' сохранен.\n\n"
+            f"Тренажер '{machine_input.name}' сохранен.\n\n"
             "Выберите группы мышц или отдельные мышцы для этого тренажера:",
             reply_markup=keyboard
         )
         await state.set_state(MachineStates.waiting_for_muscle_selection)
-        logger.info(f"Пользователь {user_id} ввел название тренажёра '{machine_name}', переходит к выбору мышц.")
+        logger.info(f"Пользователь {user_id} ввел название тренажёра '{machine_input.name}', переходит к выбору мышц.")
 
     except ValueError as e:
         logger.warning(f"Ошибка валидации при добавлении тренажёра пользователем {user_id}: {e}")

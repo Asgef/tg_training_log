@@ -20,7 +20,7 @@ async def cmd_google_sheets(message: Message) -> None:
     try:
         logger.info(
             "Пользователь использовал команду /google_sheets",
-            event="google_sheets_command",
+            event_type="google_sheets_command",
             user_id=message.from_user.id,
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -31,7 +31,7 @@ async def cmd_google_sheets(message: Message) -> None:
     except Exception as e:
         logger.error(
             "Ошибка в cmd_google_sheets",
-            event="google_sheets_command_error",
+            event_type="google_sheets_command_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,
@@ -43,7 +43,7 @@ async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContex
     try:
         logger.info(
             "Пользователь инициировал настройку Google Sheets",
-            event="google_sheets_setup_started",
+            event_type="google_sheets_setup_started",
             user_id=callback.from_user.id,
         )
         await callback.message.edit_text(
@@ -64,7 +64,7 @@ async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContex
     except Exception as e:
         logger.error(
             "Ошибка в setup_google_sheets_callback",
-            event="google_sheets_setup_error",
+            event_type="google_sheets_setup_error",
             user_id=callback.from_user.id,
             error=str(e),
             exc_info=True,
@@ -85,21 +85,21 @@ async def process_sheet_url(
     try:
         logger.info(
             "Пользователь отправил URL Google Sheet для настройки",
-            event="google_sheets_url_submitted",
+            event_type="google_sheets_url_submitted",
             user_id=user_id,
         )
         success = await google_sheets_export_use_case.setup_google_sheets_config(user_id, sheet_url)
         if success:
             logger.info(
                 "Пользователь успешно настроил Google Sheets",
-                event="google_sheets_setup_completed",
+                event_type="google_sheets_setup_completed",
                 user_id=user_id,
             )
             await message.answer("Google Sheets успешно настроены.")
         else:
             logger.warning(
                 "Пользователь не смог настроить Google Sheets",
-                event="google_sheets_setup_failed",
+                event_type="google_sheets_setup_failed",
                 user_id=user_id,
                 reason="unknown",
             )
@@ -107,7 +107,7 @@ async def process_sheet_url(
     except ValueError as e:
         logger.warning(
             "Ошибка валидации при настройке Google Sheets",
-            event="google_sheets_setup_validation_error",
+            event_type="google_sheets_setup_validation_error",
             user_id=user_id,
             error=str(e),
         )
@@ -115,7 +115,7 @@ async def process_sheet_url(
     except Exception as e:
         logger.error(
             "Неожиданная ошибка в process_sheet_url",
-            event="google_sheets_setup_error",
+            event_type="google_sheets_setup_error",
             user_id=user_id,
             error=str(e),
             exc_info=True,
@@ -135,21 +135,21 @@ async def export_data_to_sheets_callback(
     try:
         logger.info(
             "Пользователь инициировал экспорт данных в Google Sheets",
-            event="google_sheets_export_started",
+            event_type="google_sheets_export_started",
             user_id=user_id,
         )
         success = await google_sheets_export_use_case.export_data_to_sheets(user_id)
         if success:
             logger.info(
                 "Пользователь успешно экспортировал данные в Google Sheets",
-                event="google_sheets_export_completed",
+                event_type="google_sheets_export_completed",
                 user_id=user_id,
             )
             await callback.message.edit_text("Данные успешно экспортированы в Google Sheets.")
         else:
             logger.warning(
                 "Пользователь не смог экспортировать данные в Google Sheets",
-                event="google_sheets_export_failed",
+                event_type="google_sheets_export_failed",
                 user_id=user_id,
                 reason="unknown",
             )
@@ -157,7 +157,7 @@ async def export_data_to_sheets_callback(
     except ValueError as e:
         logger.warning(
             "Ошибка валидации при экспорте Google Sheets",
-            event="google_sheets_export_validation_error",
+            event_type="google_sheets_export_validation_error",
             user_id=user_id,
             error=str(e),
         )
@@ -165,7 +165,7 @@ async def export_data_to_sheets_callback(
     except Exception as e:
         logger.error(
             "Неожиданная ошибка в export_data_to_sheets_callback",
-            event="google_sheets_export_error",
+            event_type="google_sheets_export_error",
             user_id=user_id,
             error=str(e),
             exc_info=True,

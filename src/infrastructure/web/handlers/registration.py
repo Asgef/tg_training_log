@@ -12,9 +12,11 @@ from aiogram.types import (
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from pydantic import ValidationError
 
 from src.configs.config import config
 from src.application.use_case_interfaces import IRegistrationUseCase
+from src.application.dto import RegistrationInputDTO
 
 logger = structlog.get_logger(__name__)
 
@@ -62,7 +64,7 @@ async def cmd_start(
         if user and user.is_registered:
             logger.info(
                 "Пользователь уже зарегистрирован и использовал /start",
-                event="user_start_command",
+                event_type="user_start_command",
                 user_id=user_telegram_id,
                 is_registered=True,
             )
@@ -73,7 +75,7 @@ async def cmd_start(
         elif user and not user.is_registered:
             logger.info(
                 "Пользователь ожидает одобрения администратора",
-                event="user_start_command",
+                event_type="user_start_command",
                 user_id=user_telegram_id,
                 is_registered=False,
                 registration_status="pending",
@@ -82,7 +84,7 @@ async def cmd_start(
         else:
             logger.info(
                 "Новый пользователь использовал /start",
-                event="user_start_command",
+                event_type="user_start_command",
                 user_id=user_telegram_id,
                 is_registered=False,
                 registration_status="not_started",
@@ -97,7 +99,7 @@ async def cmd_start(
     except Exception as e:
         logger.error(
             "Ошибка в cmd_start",
-            event="user_start_command_error",
+            event_type="user_start_command_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,
@@ -110,7 +112,7 @@ async def process_register_request(callback: CallbackQuery, state: FSMContext) -
     try:
         logger.info(
             "Пользователь инициировал запрос на регистрацию",
-            event="registration_request_started",
+            event_type="registration_request_started",
             user_id=callback.from_user.id,
         )
         await callback.message.edit_text("Пожалуйста, расскажите немного о себе, чтобы администратор мог одобрить вашу заявку.")
@@ -119,7 +121,7 @@ async def process_register_request(callback: CallbackQuery, state: FSMContext) -
     except Exception as e:
         logger.error(
             "Ошибка в process_register_request",
-            event="registration_request_error",
+            event_type="registration_request_error",
             user_id=callback.from_user.id,
             error=str(e),
             exc_info=True,
@@ -141,20 +143,45 @@ async def process_description(
         username = message.from_user.username if message.from_user.username else ""
         first_name = message.from_user.first_name if message.from_user.first_name else ""
         last_name = message.from_user.last_name if message.from_user.last_name else ""
-        description = message.text
+        
+        # Валидация через Pydantic DTO
+        try:
+            registration_input = RegistrationInputDTO(
+                telegram_id=user_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                description=message.text,
+            )
+        except ValidationError as e:
+            error_messages = "; ".join([err["msg"] for err in e.errors()])
+            logger.warning(
+                "Пользователь предоставил невалидные данные регистрации",
+                event_type="registration_validation_error",
+                user_id=user_id,
+                errors=error_messages,
+            )
+            await message.answer(f"Ошибка валидации: {error_messages}. Попробуйте еще раз.")
+            return
 
         logger.info(
             "Пользователь отправил описание для регистрации",
-            event="registration_description_submitted",
+            event_type="registration_description_submitted",
             user_id=user_id,
             username=username,
         )
-        success = await registration_use_case.request_registration(user_id, username, first_name, last_name, description)
+        success = await registration_use_case.request_registration(
+            registration_input.telegram_id,
+            registration_input.username,
+            registration_input.first_name,
+            registration_input.last_name,
+            registration_input.description,
+        )
 
         if success:
             logger.info(
                 "Запрос на регистрацию успешно создан",
-                event="registration_request_created",
+                event_type="registration_request_created",
                 user_id=user_id,
                 username=username,
             )
@@ -174,14 +201,14 @@ async def process_description(
                     )
                     logger.info(
                         "Администратор уведомлён о новом запросе на регистрацию",
-                        event="admin_notification_sent",
+                        event_type="admin_notification_sent",
                         admin_id=admin_id,
                         user_id=user_id,
                     )
                 except Exception as e:
                     logger.error(
                         "Не удалось уведомить администратора о регистрации",
-                        event="admin_notification_error",
+                        event_type="admin_notification_error",
                         admin_id=admin_id,
                         user_id=user_id,
                         error=str(e),
@@ -190,7 +217,7 @@ async def process_description(
         else:
             logger.warning(
                 "Запрос на регистрацию не удался, возможно дубликат",
-                event="registration_request_failed",
+                event_type="registration_request_failed",
                 user_id=user_id,
                 reason="duplicate_or_error",
             )
@@ -199,7 +226,7 @@ async def process_description(
     except Exception as e:
         logger.error(
             "Ошибка в process_description",
-            event="registration_description_error",
+            event_type="registration_description_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,
@@ -220,7 +247,7 @@ async def admin_approve_request(
         if callback.from_user.id not in ADMIN_IDS:
             logger.warning(
                 "Не-администратор попытался одобрить регистрацию",
-                event="unauthorized_registration_approval_attempt",
+                event_type="unauthorized_registration_approval_attempt",
                 user_id=callback.from_user.id,
             )
             await callback.answer("У вас нет прав для выполнения этой операции.", show_alert=True)
@@ -231,7 +258,7 @@ async def admin_approve_request(
 
         logger.info(
             "Администратор пытается одобрить регистрацию",
-            event="registration_approval_started",
+            event_type="registration_approval_started",
             admin_id=callback.from_user.id,
             target_user_id=user_id,
         )
@@ -240,7 +267,7 @@ async def admin_approve_request(
         if success:
             logger.info(
                 "Регистрация успешно одобрена",
-                event="registration_approved",
+                event_type="registration_approved",
                 admin_id=callback.from_user.id,
                 user_id=user_id,
             )
@@ -253,13 +280,13 @@ async def admin_approve_request(
                 )
                 logger.info(
                     "Пользователь уведомлён об одобренной регистрации",
-                    event="user_notified_registration_approved",
+                    event_type="user_notified_registration_approved",
                     user_id=user_id,
                 )
             except Exception as e:
                 logger.error(
                     "Не удалось уведомить пользователя об одобренной регистрации",
-                    event="user_notification_error",
+                    event_type="user_notification_error",
                     user_id=user_id,
                     error=str(e),
                     exc_info=True,
@@ -267,7 +294,7 @@ async def admin_approve_request(
         else:
             logger.warning(
                 "Администратор не смог одобрить регистрацию",
-                event="registration_approval_failed",
+                event_type="registration_approval_failed",
                 admin_id=callback.from_user.id,
                 user_id=user_id,
                 reason="user_already_registered_or_not_found",
@@ -276,7 +303,7 @@ async def admin_approve_request(
     except Exception as e:
         logger.error(
             "Ошибка в admin_approve_request",
-            event="registration_approval_error",
+            event_type="registration_approval_error",
             admin_id=callback.from_user.id,
             target_user_id=user_id_str,
             error=str(e),
@@ -298,7 +325,7 @@ async def admin_reject_request(
         if callback.from_user.id not in ADMIN_IDS:
             logger.warning(
                 "Не-администратор попытался отклонить регистрацию",
-                event="unauthorized_registration_rejection_attempt",
+                event_type="unauthorized_registration_rejection_attempt",
                 user_id=callback.from_user.id,
             )
             await callback.answer("У вас нет прав для выполнения этой операции.", show_alert=True)
@@ -309,7 +336,7 @@ async def admin_reject_request(
 
         logger.info(
             "Администратор пытается отклонить регистрацию",
-            event="registration_rejection_started",
+            event_type="registration_rejection_started",
             admin_id=callback.from_user.id,
             target_user_id=user_id,
         )
@@ -318,7 +345,7 @@ async def admin_reject_request(
         if success:
             logger.info(
                 "Регистрация успешно отклонена",
-                event="registration_rejected",
+                event_type="registration_rejected",
                 admin_id=callback.from_user.id,
                 user_id=user_id,
             )
@@ -327,13 +354,13 @@ async def admin_reject_request(
                 await bot.send_message(chat_id=user_id, text="Ваша регистрация отклонена.")
                 logger.info(
                     "Пользователь уведомлён об отклонённой регистрации",
-                    event="user_notified_registration_rejected",
+                    event_type="user_notified_registration_rejected",
                     user_id=user_id,
                 )
             except Exception as e:
                 logger.error(
                     "Не удалось уведомить пользователя об отклонённой регистрации",
-                    event="user_notification_error",
+                    event_type="user_notification_error",
                     user_id=user_id,
                     error=str(e),
                     exc_info=True,
@@ -341,7 +368,7 @@ async def admin_reject_request(
         else:
             logger.warning(
                 "Администратор не смог отклонить регистрацию",
-                event="registration_rejection_failed",
+                event_type="registration_rejection_failed",
                 admin_id=callback.from_user.id,
                 user_id=user_id,
                 reason="request_already_processed_or_not_found",
@@ -350,7 +377,7 @@ async def admin_reject_request(
     except Exception as e:
         logger.error(
             "Ошибка в admin_reject_request",
-            event="registration_rejection_error",
+            event_type="registration_rejection_error",
             admin_id=callback.from_user.id,
             target_user_id=user_id_str,
             error=str(e),
@@ -381,7 +408,7 @@ async def cmd_menu(
     except Exception as e:
         logger.error(
             "Ошибка в cmd_menu",
-            event="menu_command_error",
+            event_type="menu_command_error",
             user_id=message.from_user.id,
             error=str(e),
             exc_info=True,

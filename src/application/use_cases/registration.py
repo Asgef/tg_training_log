@@ -3,6 +3,7 @@ from typing import Optional
 from src.application.repositories import IUserRepository
 from src.application.use_case_interfaces import IRegistrationUseCase
 from src.domain.models import User
+from src.application.dto import UserDTO, user_to_dto
 
 logger = structlog.get_logger(__name__)
 
@@ -75,11 +76,13 @@ class RegistrationUseCase(IRegistrationUseCase):
             logger.error("Ошибка при отклонении регистрации", user_id=user_id, error=str(e), exc_info=True)
             return False
 
-    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+    async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[UserDTO]:
         """Получает пользователя по Telegram ID."""
         try:
             user = await self.user_repository.get_by_telegram_id(telegram_id)
-            return user
+            if user:
+                return user_to_dto(user)
+            return None
         except Exception as e:
             logger.error("Ошибка при получении пользователя", telegram_id=telegram_id, error=str(e), exc_info=True)
             return None

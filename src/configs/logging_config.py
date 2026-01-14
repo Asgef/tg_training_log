@@ -74,14 +74,20 @@ def setup_logging() -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             # Добавляем уровень логирования
             structlog.processors.add_log_level,
-            # Добавляем имя логгера
-            structlog.processors.add_logger_name,
+            # Добавляем информацию о месте вызова (включая имя модуля)
+            structlog.processors.CallsiteParameterAdder(
+                parameters=[
+                    structlog.processors.CallsiteParameter.FILENAME,
+                    structlog.processors.CallsiteParameter.LINENO,
+                    structlog.processors.CallsiteParameter.FUNC_NAME,
+                ]
+            ),
             # Маскируем PII данные
             mask_pii_processor,
             # Форматируем исключения
             structlog.processors.format_exc_info,
-            # Преобразуем в JSON
-            structlog.processors.JSONRenderer(),
+            # Преобразуем в JSON (ensure_ascii=False для корректного отображения кириллицы)
+            structlog.processors.JSONRenderer(ensure_ascii=False),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
         context_class=dict,

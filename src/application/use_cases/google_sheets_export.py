@@ -33,7 +33,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             if "docs.google.com" not in parsed_url.netloc:
                 logger.warning(
                     "Пользователь предоставил неверный URL Google Sheets",
-                    event="google_sheets_invalid_url",
+                    event_type="google_sheets_invalid_url",
                     user_id=user_id,
                 )
                 raise ValueError("Предоставленный URL не является валидным URL Google Sheets.")
@@ -45,14 +45,14 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                 except IndexError:
                     logger.warning(
                         "Пользователь предоставил URL без определяемого ID таблицы",
-                        event="google_sheets_url_parse_error",
+                        event_type="google_sheets_url_parse_error",
                         user_id=user_id,
                     )
                     raise ValueError("Не удалось извлечь ID таблицы из URL.")
             else:
                 logger.warning(
                     "Пользователь предоставил URL без определяемого ID таблицы",
-                    event="google_sheets_url_parse_error",
+                    event_type="google_sheets_url_parse_error",
                     user_id=user_id,
                 )
                 raise ValueError("Could not extract spreadsheet ID from the URL.")
@@ -62,7 +62,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             )
             logger.info(
                 "Пользователь успешно настроил Google Sheets",
-                event="google_sheets_config_saved",
+                event_type="google_sheets_config_saved",
                 user_id=user_id,
                 spreadsheet_id=spreadsheet_id,
             )
@@ -70,7 +70,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
         except Exception as e:
             logger.error(
                 "Ошибка при настройке конфигурации Google Sheets",
-                event="google_sheets_setup_error",
+                event_type="google_sheets_setup_error",
                 user_id=user_id,
                 error=str(e),
                 exc_info=True,
@@ -83,14 +83,14 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             if not user or not user.spreadsheet_id:
                 logger.warning(
                     "Пользователь попытался экспортировать данные без настроенного Google Sheets",
-                    event="google_sheets_export_no_config",
+                    event_type="google_sheets_export_no_config",
                     user_id=user_id,
                 )
                 raise ValueError("Google Sheets не настроен для этого пользователя.")
 
             logger.info(
                 "Начало экспорта данных в Google Sheets",
-                event="google_sheets_export_started",
+                event_type="google_sheets_export_started",
                 user_id=user_id,
                 spreadsheet_id=user.spreadsheet_id,
             )
@@ -120,7 +120,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                 )
                 logger.info(
                     "Пользователь успешно экспортировал тренажёры в Google Sheets",
-                    event="google_sheets_machines_exported",
+                    event_type="google_sheets_machines_exported",
                     user_id=user_id,
                     spreadsheet_id=user.spreadsheet_id,
                     machines_count=len(machines),
@@ -129,7 +129,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             # Экспорт подходов (append) - Заглушка
             logger.info(
                 "Экспорт подходов ожидает реализации",
-                event="google_sheets_sets_export_pending",
+                event_type="google_sheets_sets_export_pending",
                 user_id=user_id,
             )
 
@@ -137,7 +137,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
         except Exception as e:
             logger.error(
                 "Ошибка при экспорте данных в Google Sheets",
-                event="google_sheets_export_error",
+                event_type="google_sheets_export_error",
                 user_id=user_id,
                 error=str(e),
                 exc_info=True,
