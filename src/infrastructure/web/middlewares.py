@@ -1,3 +1,4 @@
+"""Middleware для проверки регистрации пользователей."""
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import (
@@ -10,12 +11,13 @@ from aiogram.types import (
 from src.application.repositories import IUserRepository
 from src.configs.config import config
 
-# Заглушка для dependency injection
-user_repository: IUserRepository = None  # type: ignore
-
 
 class RegistrationCheckMiddleware(BaseMiddleware):
-    user_repository: IUserRepository = None  # type: ignore
+    """Middleware для проверки регистрации пользователя.
+    
+    Проверяет зарегистрирован ли пользователь перед выполнением handler.
+    Пропускает команду /start и callback для регистрации.
+    """
     
     async def __call__(
         self,
@@ -23,8 +25,19 @@ class RegistrationCheckMiddleware(BaseMiddleware):
         event: Message | CallbackQuery,
         data: Dict[str, Any],
     ) -> Any:
-        repo = self.user_repository or user_repository
-        if repo is None:
+        """Обработка события с проверкой регистрации.
+        
+        Args:
+            handler: Следующий handler в цепочке
+            event: Telegram событие
+            data: Данные для передачи в handler
+            
+        Returns:
+            Результат выполнения handler или None если пользователь не зарегистрирован
+        """
+        # Получаем user_repository из data (инъектируется DependencyInjectionMiddleware)
+        user_repository: IUserRepository = data.get("user_repository")
+        if user_repository is None:
             raise ValueError("UserRepository не инициализирован в middleware")
 
         user_id = event.from_user.id
@@ -40,14 +53,17 @@ class RegistrationCheckMiddleware(BaseMiddleware):
         ):
             return await handler(event, data)
 
+        # Админы могут пропустить проверку
         if user_id in config.admin_ids:
             return await handler(event, data)
 
-        user = await repo.get_by_telegram_id(user_id)
+        # Проверяем регистрацию пользователя
+        user = await user_repository.get_by_telegram_id(user_id)
 
         if user and user.is_registered:
             return await handler(event, data)
         else:
+            # Пользователь не зарегистрирован
             if isinstance(event, Message):
                 keyboard = InlineKeyboardMarkup(
                     inline_keyboard=[

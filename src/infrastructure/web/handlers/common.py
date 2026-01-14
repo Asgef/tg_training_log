@@ -1,4 +1,4 @@
-# ruff: noqa: F821
+"""Handler для общих команд (Google Sheets и т.д.)."""
 import logging
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -6,6 +6,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from src.application.use_case_interfaces import IGoogleSheetsExportUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,12 @@ async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContex
         await callback.answer()
 
 @router.message(GoogleSheetsStates.waiting_for_sheet_url)
-async def process_sheet_url(message: Message, state: FSMContext) -> None:
+async def process_sheet_url(
+    message: Message,
+    state: FSMContext,
+    google_sheets_export_use_case: IGoogleSheetsExportUseCase,
+) -> None:
+    """Обработчик URL Google Sheets."""
     user_id = message.from_user.id
     sheet_url = message.text.strip()
 
@@ -76,7 +82,11 @@ async def process_sheet_url(message: Message, state: FSMContext) -> None:
         logger.debug(f"Состояние очищено для пользователя {user_id}.")
 
 @router.callback_query(F.data == "export_data_to_sheets")
-async def export_data_to_sheets_callback(callback: CallbackQuery) -> None:
+async def export_data_to_sheets_callback(
+    callback: CallbackQuery,
+    google_sheets_export_use_case: IGoogleSheetsExportUseCase,
+) -> None:
+    """Обработчик экспорта данных в Google Sheets."""
     user_id = callback.from_user.id
     await callback.message.edit_text("Начинаю экспорт данных в Google Sheets...")
     try:
@@ -96,13 +106,6 @@ async def export_data_to_sheets_callback(callback: CallbackQuery) -> None:
         await callback.message.edit_text(f"Произошла непредвиденная ошибка при экспорте: {e}")
     finally:
         await callback.answer()
-
-
-# Обработчик кнопки меню
-@router.message(F.text == "📊 Google Sheets")
-async def handle_google_sheets_button(message: Message) -> None:
-    """Обработчик кнопки 'Google Sheets'."""
-    await cmd_google_sheets(message)
 
 
 # Обработчик кнопки меню

@@ -16,4 +16,5 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "ruff>=0.14.11",
     "sqlalchemy>=2.0.45",
+    "dependency-injector>=4.48.3",
 ]

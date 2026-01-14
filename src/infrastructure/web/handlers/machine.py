@@ -1,4 +1,4 @@
-# ruff: noqa: F821
+"""Handler для управления тренажёрами."""
 import logging
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -7,6 +7,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.exceptions import TelegramBadRequest
 
+from src.application.use_case_interfaces import IMachineManagementUseCase
+from src.application.repositories import IMuscleRepository
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,11 @@ class MachineStates(StatesGroup):
     waiting_for_edit_muscle_selection = State()
 
 @router.message(Command("machines"))
-async def cmd_machines(message: Message) -> None:
+async def cmd_machines(
+    message: Message,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     try:
         logger.info(f"Пользователь {message.from_user.id} использовал команду /machines.")
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -56,7 +62,12 @@ async def cmd_machines(message: Message) -> None:
 
 
 @router.callback_query(F.data == "add_machine")
-async def add_machine_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def add_machine_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     try:
         logger.info(f"Пользователь {callback.from_user.id} инициировал процесс добавления тренажёра.")
         await callback.message.edit_text("Введите название нового тренажера:")
@@ -69,7 +80,11 @@ async def add_machine_callback(callback: CallbackQuery, state: FSMContext) -> No
 
 
 @router.message(MachineStates.waiting_for_machine_name)
-async def process_machine_name(message: Message, state: FSMContext) -> None:
+async def process_machine_name(
+    message: Message,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     user_id = message.from_user.id
     machine_name = message.text.strip()
     
@@ -121,7 +136,10 @@ async def process_machine_name(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data == "list_machines")
-async def list_machines_callback(callback: CallbackQuery) -> None:
+async def list_machines_callback(
+    callback: CallbackQuery,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     user_id = callback.from_user.id
     try:
         machines = await machine_management_use_case.get_user_machines(user_id)
@@ -185,7 +203,10 @@ async def view_machine_details_callback(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("archive_machine_"))
-async def archive_machine_callback(callback: CallbackQuery) -> None:
+async def archive_machine_callback(
+    callback: CallbackQuery,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     user_id = callback.from_user.id
     machine_id = int(callback.data.split('_')[-1])
 
@@ -296,7 +317,12 @@ async def _build_muscle_groups_keyboard_for_creation(muscle_groups, selected_mus
 
 
 @router.callback_query(F.data.startswith("edit_machine_muscles_"))
-async def edit_machine_muscles_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def edit_machine_muscles_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик редактирования мышц тренажера - показывает меню выбора"""
     user_id = callback.from_user.id
     machine_id = int(callback.data.split('_')[-1])
@@ -383,7 +409,12 @@ async def edit_machine_muscles_callback(callback: CallbackQuery, state: FSMConte
 
 
 @router.callback_query(F.data.startswith("edit_select_group_"))
-async def edit_select_group_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def edit_select_group_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик выбора группы мышц при редактировании - переключает все мышцы группы (добавляет/удаляет)"""
     user_id = callback.from_user.id
     group_id = int(callback.data.split('_')[-1])
@@ -476,7 +507,12 @@ async def edit_select_group_callback(callback: CallbackQuery, state: FSMContext)
 
 
 @router.callback_query(F.data == "edit_select_individual_muscles")
-async def edit_select_individual_muscles_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def edit_select_individual_muscles_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик выбора отдельных мышц при редактировании - показывает список всех мышц"""
     user_id = callback.from_user.id
     
@@ -571,7 +607,11 @@ async def edit_select_individual_muscles_callback(callback: CallbackQuery, state
 
 
 @router.callback_query(F.data.startswith("toggle_edit_muscle_"))
-async def toggle_edit_muscle_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def toggle_edit_muscle_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     """Обработчик переключения выбора мышцы при редактировании"""
     user_id = callback.from_user.id
     muscle_id = int(callback.data.split('_')[-1])
@@ -608,7 +648,12 @@ async def toggle_edit_muscle_callback(callback: CallbackQuery, state: FSMContext
 
 
 @router.callback_query(F.data == "save_machine_muscles")
-async def save_machine_muscles_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def save_machine_muscles_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик сохранения изменений мышц тренажера"""
     user_id = callback.from_user.id
     
@@ -717,7 +762,11 @@ async def edit_machine_callback(callback: CallbackQuery, state: FSMContext) -> N
 
 
 @router.callback_query(F.data.startswith("edit_machine_name_"))
-async def edit_machine_name_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def edit_machine_name_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     user_id = callback.from_user.id
     machine_id = int(callback.data.split('_')[-1])
     try:
@@ -779,7 +828,11 @@ async def process_edit_machine_name(message: Message, state: FSMContext) -> None
 
 
 @router.callback_query(F.data == "skip_muscle_selection")
-async def skip_muscle_selection_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def skip_muscle_selection_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     """Обработчик пропуска выбора мышц - создает тренажер без мышц"""
     user_id = callback.from_user.id
     try:
@@ -805,7 +858,12 @@ async def skip_muscle_selection_callback(callback: CallbackQuery, state: FSMCont
 
 
 @router.callback_query(F.data.startswith("select_group_"))
-async def select_group_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def select_group_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик выбора группы мышц при создании - переключает все мышцы группы (добавляет/удаляет)"""
     user_id = callback.from_user.id
     group_id = int(callback.data.split('_')[-1])
@@ -892,7 +950,12 @@ async def select_group_callback(callback: CallbackQuery, state: FSMContext) -> N
 
 
 @router.callback_query(F.data == "select_individual_muscles")
-async def select_individual_muscles_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def select_individual_muscles_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик выбора отдельных мышц - показывает список всех мышц"""
     user_id = callback.from_user.id
     
@@ -975,7 +1038,11 @@ async def select_individual_muscles_callback(callback: CallbackQuery, state: FSM
 
 
 @router.callback_query(F.data.startswith("toggle_muscle_"))
-async def toggle_muscle_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def toggle_muscle_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     """Обработчик переключения выбора отдельной мышцы"""
     user_id = callback.from_user.id
     muscle_id = int(callback.data.split('_')[-1])
@@ -1007,7 +1074,12 @@ async def toggle_muscle_callback(callback: CallbackQuery, state: FSMContext) -> 
 
 
 @router.callback_query(F.data == "add_more_muscles")
-async def add_more_muscles_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def add_more_muscles_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик для возврата к выбору мышц"""
     user_id = callback.from_user.id
     
@@ -1059,13 +1131,21 @@ async def add_more_muscles_callback(callback: CallbackQuery, state: FSMContext) 
 
 
 @router.callback_query(F.data == "muscle_group_header")
-async def muscle_group_header_callback(callback: CallbackQuery) -> None:
+async def muscle_group_header_callback(
+    callback: CallbackQuery,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
     """Обработчик неактивной кнопки заголовка группы - просто отвечает пустым ответом"""
     await callback.answer()
 
 
 @router.callback_query(F.data == "finish_machine_creation")
-async def finish_machine_creation_callback(callback: CallbackQuery, state: FSMContext) -> None:
+async def finish_machine_creation_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик завершения создания тренажера"""
     user_id = callback.from_user.id
     
@@ -1111,6 +1191,10 @@ async def finish_machine_creation_callback(callback: CallbackQuery, state: FSMCo
 
 # Обработчик кнопки меню
 @router.message(F.text == "💪 Тренажеры")
-async def handle_machines_button(message: Message) -> None:
+async def handle_machines_button(
+    message: Message,
+    machine_management_use_case: IMachineManagementUseCase,
+    muscle_repository: IMuscleRepository,
+) -> None:
     """Обработчик кнопки 'Тренажеры'."""
-    await cmd_machines(message)
+    await cmd_machines(message, machine_management_use_case, muscle_repository)

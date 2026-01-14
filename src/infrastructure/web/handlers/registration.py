@@ -1,4 +1,4 @@
-# ruff: noqa: F821
+"""Handler для регистрации пользователей."""
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
@@ -14,6 +14,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from src.configs.config import config
+from src.application.repositories import IUserRepository
+from src.application.use_case_interfaces import IRegistrationUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,12 @@ class RegistrationStates(StatesGroup):
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext = None) -> None:
+async def cmd_start(
+    message: Message,
+    user_repository: IUserRepository,
+    state: FSMContext = None,
+) -> None:
+    """Обработчик команды /start."""
     try:
         user_telegram_id = message.from_user.id
         user = await user_repository.get_by_telegram_id(user_telegram_id)
@@ -90,7 +97,13 @@ async def process_register_request(callback: CallbackQuery, state: FSMContext) -
 
 
 @router.message(RegistrationStates.waiting_for_description)
-async def process_description(message: Message, state: FSMContext, bot: Bot) -> None:
+async def process_description(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    registration_use_case: IRegistrationUseCase,
+) -> None:
+    """Обработчик описания пользователя при регистрации."""
     try:
         user_id = message.from_user.id
         username = message.from_user.username if message.from_user.username else ""
@@ -131,7 +144,12 @@ async def process_description(message: Message, state: FSMContext, bot: Bot) -> 
 
 
 @router.callback_query(F.data.startswith("admin_approve_"))
-async def admin_approve_request(callback: CallbackQuery, bot: Bot) -> None:
+async def admin_approve_request(
+    callback: CallbackQuery,
+    bot: Bot,
+    registration_use_case: IRegistrationUseCase,
+) -> None:
+    """Обработчик одобрения регистрации администратором."""
     try:
         if callback.from_user.id not in ADMIN_IDS:
             logger.warning(f"Не-администратор {callback.from_user.id} попытался одобрить регистрацию.")
@@ -166,7 +184,12 @@ async def admin_approve_request(callback: CallbackQuery, bot: Bot) -> None:
 
 
 @router.callback_query(F.data.startswith("admin_reject_"))
-async def admin_reject_request(callback: CallbackQuery, bot: Bot) -> None:
+async def admin_reject_request(
+    callback: CallbackQuery,
+    bot: Bot,
+    registration_use_case: IRegistrationUseCase,
+) -> None:
+    """Обработчик отклонения регистрации администратором."""
     try:
         if callback.from_user.id not in ADMIN_IDS:
             logger.warning(f"Не-администратор {callback.from_user.id} попытался отклонить регистрацию.")
@@ -197,7 +220,10 @@ async def admin_reject_request(callback: CallbackQuery, bot: Bot) -> None:
 
 
 @router.message(Command("menu"))
-async def cmd_menu(message: Message) -> None:
+async def cmd_menu(
+    message: Message,
+    user_repository: IUserRepository,
+) -> None:
     """Показывает главное меню."""
     try:
         user_telegram_id = message.from_user.id

@@ -1,4 +1,4 @@
-# ruff: noqa: F821
+"""Handler для тренировок."""
 import logging
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -6,6 +6,7 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from src.application.use_case_interfaces import IWorkoutUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,11 @@ class WorkoutStates(StatesGroup):
 
 
 @router.message(Command("workout_start"))
-async def cmd_workout_start(message: Message) -> None:
+async def cmd_workout_start(
+    message: Message,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Обработчик команды /workout_start."""
     try:
         user_id = message.from_user.id
         session = await workout_use_case.start_new_workout(user_id)
@@ -35,7 +40,11 @@ async def cmd_workout_start(message: Message) -> None:
         await message.answer("Произошла ошибка при начале тренировки.")
 
 @router.message(Command("workout_end"))
-async def cmd_workout_end(message: Message) -> None:
+async def cmd_workout_end(
+    message: Message,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Обработчик команды /workout_end."""
     try:
         user_id = message.from_user.id
         session = await workout_use_case.end_current_workout(user_id)
@@ -50,7 +59,12 @@ async def cmd_workout_end(message: Message) -> None:
         await message.answer("Произошла ошибка при завершении тренировки.")
 
 @router.message(Command("record_set"))
-async def cmd_record_set(message: Message, state: FSMContext) -> None:
+async def cmd_record_set(
+    message: Message,
+    state: FSMContext,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Обработчик команды /record_set."""
     try:
         user_id = message.from_user.id
         active_session = await workout_use_case.get_active_workout_session(user_id)
@@ -67,7 +81,12 @@ async def cmd_record_set(message: Message, state: FSMContext) -> None:
         await message.answer("Произошла ошибка при подготовке к записи подхода.")
 
 @router.message(WorkoutStates.waiting_for_set_data)
-async def process_set_data(message: Message, state: FSMContext) -> None:
+async def process_set_data(
+    message: Message,
+    state: FSMContext,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Обработчик ввода данных подхода."""
     user_id = message.from_user.id
     try:
         parts = message.text.split()
@@ -99,7 +118,10 @@ async def process_set_data(message: Message, state: FSMContext) -> None:
 
 # Обработчики кнопок меню
 @router.message(F.text == "🏋️ Начать тренировку")
-async def handle_start_workout_button(message: Message) -> None:
+async def handle_start_workout_button(
+    message: Message,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
     """Обработчик кнопки 'Начать тренировку'."""
     try:
         user_id = message.from_user.id
@@ -119,12 +141,19 @@ async def handle_start_workout_button(message: Message) -> None:
 
 
 @router.message(F.text == "✅ Завершить тренировку")
-async def handle_end_workout_button(message: Message) -> None:
+async def handle_end_workout_button(
+    message: Message,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
     """Обработчик кнопки 'Завершить тренировку'."""
-    await cmd_workout_end(message)
+    await cmd_workout_end(message, workout_use_case)
 
 
 @router.message(F.text == "📝 Записать подход")
-async def handle_record_set_button(message: Message, state: FSMContext) -> None:
+async def handle_record_set_button(
+    message: Message,
+    state: FSMContext,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
     """Обработчик кнопки 'Записать подход'."""
-    await cmd_record_set(message, state)
+    await cmd_record_set(message, state, workout_use_case)
