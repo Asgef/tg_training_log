@@ -137,6 +137,30 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             )
             raise
 
+    async def get_muscles_by_group_id(self, group_id: int) -> List[Muscle]:
+        try:
+            stmt = (
+                select(Muscle)
+                .where(Muscle.group_id == group_id)
+                .options(selectinload(Muscle.group))
+            )
+            result = await self.session.execute(stmt)
+            muscles = list(result.scalars().all())
+            logger.debug(f"Получено {len(muscles)} мышц для группы {group_id}.")
+            return muscles
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError в get_muscles_by_group_id для группы {group_id}: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка в get_muscles_by_group_id для группы {group_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
     async def get_all_muscle_groups(self) -> List[MuscleGroup]:
         try:
             stmt = select(MuscleGroup)

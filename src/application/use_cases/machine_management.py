@@ -135,6 +135,23 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                 machine.is_archived = is_archived
 
             updated_machine = await self.machine_repository.update(machine)
+            
+            # Обновляем мышцы, если указаны
+            if muscle_ids is not None:
+                # Валидируем мышцы
+                muscles = await self.muscle_repository.get_muscles_by_ids(muscle_ids)
+                if len(muscles) != len(muscle_ids):
+                    logger.warning(
+                        f"Пользователь {user_id} предоставил неверные ID мышц: {muscle_ids}"
+                    )
+                    raise ValueError(
+                        "Один или несколько указанных ID мышц не существуют."
+                    )
+                
+                await self.machine_repository.update_machine_muscles(machine_id, muscle_ids)
+                # Обновляем объект, чтобы получить актуальные мышцы
+                updated_machine = await self.machine_repository.get_by_id(machine_id)
+            
             logger.info(f"Пользователь {user_id} обновил тренажёр {machine_id}.")
             return updated_machine
         except Exception as e:

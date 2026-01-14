@@ -193,3 +193,41 @@ class MachineRepository(IMachineRepository):
             )
             await self.session.rollback()
             raise
+
+    async def update_machine_muscles(
+        self, machine_id: int, muscle_ids: List[int]
+    ) -> None:
+        try:
+            # Удаляем все существующие связи
+            stmt = select(MachineMuscle).where(MachineMuscle.machine_id == machine_id)
+            result = await self.session.execute(stmt)
+            existing_links = result.scalars().all()
+            
+            for link in existing_links:
+                await self.session.delete(link)
+            
+            # Добавляем новые связи
+            for muscle_id in muscle_ids:
+                machine_muscle = MachineMuscle(
+                    machine_id=machine_id, muscle_id=muscle_id
+                )
+                self.session.add(machine_muscle)
+            
+            await self.session.commit()
+            logger.info(
+                f"Обновлены мышцы для тренажёра {machine_id}: {muscle_ids}."
+            )
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError при обновлении мышц тренажёра {machine_id}: {e}",
+                exc_info=True,
+            )
+            await self.session.rollback()
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при обновлении мышц тренажёра {machine_id}: {e}",
+                exc_info=True,
+            )
+            await self.session.rollback()
+            raise

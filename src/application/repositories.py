@@ -67,6 +67,12 @@ class IMachineRepository(BaseRepository):
     ) -> "Machine":
         pass
 
+    @abstractmethod
+    async def update_machine_muscles(
+        self, machine_id: int, muscle_ids: List[int]
+    ) -> None:
+        pass
+
 
 class IWorkoutSessionRepository(BaseRepository):
     @abstractmethod
@@ -97,6 +103,10 @@ class IMuscleRepository(BaseRepository):
 
     @abstractmethod
     async def get_muscles_by_ids(self, muscle_ids: List[int]) -> List["Muscle"]:
+        pass
+
+    @abstractmethod
+    async def get_muscles_by_group_id(self, group_id: int) -> List["Muscle"]:
         pass
 
 
