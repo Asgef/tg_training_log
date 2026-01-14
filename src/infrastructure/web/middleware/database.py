@@ -3,13 +3,13 @@
 Создаёт новую сессию для каждого запроса и автоматически
 делает commit при успехе или rollback при ошибке.
 """
-import logging
+import structlog
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class DatabaseMiddleware(BaseMiddleware):
@@ -56,6 +56,6 @@ class DatabaseMiddleware(BaseMiddleware):
             except Exception as e:
                 # Делаем rollback при ошибке
                 await session.rollback()
-                logger.error(f"Error in handler, session rolled back: {e}", exc_info=True)
+                logger.error("Error in handler, session rolled back", error=str(e), exc_info=True)
                 raise
             # Сессия автоматически закроется при выходе из context manager

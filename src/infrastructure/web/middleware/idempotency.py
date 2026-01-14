@@ -2,7 +2,7 @@
 
 Проверяет, был ли update уже обработан, и пропускает повторные запросы.
 """
-import logging
+import structlog
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Update
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.repositories import IProcessedUpdateRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class IdempotencyMiddleware(BaseMiddleware):
@@ -73,7 +73,7 @@ class IdempotencyMiddleware(BaseMiddleware):
             is_processed = await processed_update_repository.is_processed(update_id)
             
             if is_processed:
-                logger.info(f"Update {update_id} already processed, skipping")
+                logger.info("Update already processed, skipping", update_id=update_id)
                 # Коммитим savepoint перед возвратом
                 await savepoint.commit()
                 # Для CallbackQuery нужно ответить, чтобы не показывать loading
@@ -99,20 +99,24 @@ class IdempotencyMiddleware(BaseMiddleware):
             
         except Exception as e:
             logger.error(
-                f"Error in idempotency middleware for update {update_id}: {e}",
+                "Error in idempotency middleware",
+                update_id=update_id,
+                error=str(e),
                 exc_info=True,
             )
             # В случае ошибки откатываем savepoint, чтобы не ломать основную транзакцию
             if savepoint is not None:
                 try:
                     await savepoint.rollback()
-                    logger.debug(f"Rolled back savepoint after idempotency error for update {update_id}")
+                    logger.debug("Rolled back savepoint after idempotency error", update_id=update_id)
                 except Exception as rollback_error:
                     logger.error(
-                        f"Error during savepoint rollback in idempotency middleware: {rollback_error}",
+                        "Error during savepoint rollback in idempotency middleware",
+                        update_id=update_id,
+                        error=str(rollback_error),
                         exc_info=True,
                     )
             # Продолжаем обработку без проверки идемпотентности
             # Это лучше, чем полностью блокировать бота
-            logger.warning(f"Skipping idempotency check for update {update_id} due to error, continuing with handler")
+            logger.warning("Skipping idempotency check due to error, continuing with handler", update_id=update_id)
             return await handler(event, data)

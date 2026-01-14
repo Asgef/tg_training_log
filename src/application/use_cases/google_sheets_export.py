@@ -1,4 +1,4 @@
-import logging
+import structlog
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -11,7 +11,7 @@ from src.application.repositories import (
 from src.application.use_case_interfaces import IGoogleSheetsExportUseCase
 from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
@@ -32,7 +32,9 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             parsed_url = urlparse(sheet_url)
             if "docs.google.com" not in parsed_url.netloc:
                 logger.warning(
-                    f"Пользователь {user_id} предоставил неверный URL Google Sheets: {sheet_url}"
+                    "Пользователь предоставил неверный URL Google Sheets",
+                    event="google_sheets_invalid_url",
+                    user_id=user_id,
                 )
                 raise ValueError("Предоставленный URL не является валидным URL Google Sheets.")
 
@@ -42,12 +44,16 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                     spreadsheet_id = path_parts[path_parts.index("d") + 1]
                 except IndexError:
                     logger.warning(
-                        f"Пользователь {user_id} предоставил URL без определяемого ID таблицы: {sheet_url}"
+                        "Пользователь предоставил URL без определяемого ID таблицы",
+                        event="google_sheets_url_parse_error",
+                        user_id=user_id,
                     )
                     raise ValueError("Не удалось извлечь ID таблицы из URL.")
             else:
                 logger.warning(
-                    f"Пользователь {user_id} предоставил URL без определяемого ID таблицы: {sheet_url}"
+                    "Пользователь предоставил URL без определяемого ID таблицы",
+                    event="google_sheets_url_parse_error",
+                    user_id=user_id,
                 )
                 raise ValueError("Could not extract spreadsheet ID from the URL.")
 
@@ -55,12 +61,19 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                 user_id, sheet_url, spreadsheet_id
             )
             logger.info(
-                f"Пользователь {user_id} успешно настроил Google Sheets с ID: {spreadsheet_id}"
+                "Пользователь успешно настроил Google Sheets",
+                event="google_sheets_config_saved",
+                user_id=user_id,
+                spreadsheet_id=spreadsheet_id,
             )
             return True
         except Exception as e:
             logger.error(
-                f"Ошибка при настройке конфигурации Google Sheets для пользователя {user_id}: {e}"
+                "Ошибка при настройке конфигурации Google Sheets",
+                event="google_sheets_setup_error",
+                user_id=user_id,
+                error=str(e),
+                exc_info=True,
             )
             raise
 
@@ -69,9 +82,18 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
             user = await self.user_repository.get_by_id(user_id)
             if not user or not user.spreadsheet_id:
                 logger.warning(
-                    f"Пользователь {user_id} попытался экспортировать данные без настроенного Google Sheets."
+                    "Пользователь попытался экспортировать данные без настроенного Google Sheets",
+                    event="google_sheets_export_no_config",
+                    user_id=user_id,
                 )
                 raise ValueError("Google Sheets не настроен для этого пользователя.")
+
+            logger.info(
+                "Начало экспорта данных в Google Sheets",
+                event="google_sheets_export_started",
+                user_id=user_id,
+                spreadsheet_id=user.spreadsheet_id,
+            )
 
             # Экспорт тренажёров (upsert)
             machines = await self.machine_repository.get_user_machines(
@@ -97,17 +119,27 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                     user.spreadsheet_id, "Machines", machines_df, "ID"
                 )
                 logger.info(
-                    f"Пользователь {user_id} успешно экспортировал {len(machines)} тренажёров в Google Sheet {user.spreadsheet_id}."
+                    "Пользователь успешно экспортировал тренажёры в Google Sheets",
+                    event="google_sheets_machines_exported",
+                    user_id=user_id,
+                    spreadsheet_id=user.spreadsheet_id,
+                    machines_count=len(machines),
                 )
 
             # Экспорт подходов (append) - Заглушка
             logger.info(
-                f"Экспорт подходов для пользователя {user_id} ожидает реализации."
+                "Экспорт подходов ожидает реализации",
+                event="google_sheets_sets_export_pending",
+                user_id=user_id,
             )
 
             return True
         except Exception as e:
             logger.error(
-                f"Ошибка при экспорте данных в Google Sheets для пользователя {user_id}: {e}"
+                "Ошибка при экспорте данных в Google Sheets",
+                event="google_sheets_export_error",
+                user_id=user_id,
+                error=str(e),
+                exc_info=True,
             )
             raise

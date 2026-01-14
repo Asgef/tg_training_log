@@ -2,7 +2,7 @@
 
 Инъектирует зависимости (use cases, repositories) в handlers через параметры.
 """
-import logging
+import structlog
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.container import Container
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class DependencyInjectionMiddleware(BaseMiddleware):
@@ -63,7 +63,7 @@ class DependencyInjectionMiddleware(BaseMiddleware):
         try:
             google_sheets_client = self.container.google_sheets_client()
         except Exception as e:
-            logger.warning(f"Failed to initialize Google Sheets client: {e}")
+            logger.warning("Failed to initialize Google Sheets client", error=str(e))
             google_sheets_client = None
         
         # Инъецируем use cases в data

@@ -87,20 +87,22 @@
 
 ### Структурированное логирование
 
-- [ ] **TASK-010** [P1] Внедрить structlog
+- [X] **TASK-010** [P1] Внедрить structlog
   - Установить `structlog`
   - Настроить JSON формат логов
   - Добавить correlation_id для каждого запроса
   - Добавить контекст: user_id, chat_id, update_id
   - Настроить маскирование PII данных
   - **Оценка:** 2-3 дня
+  - **Статус:** ✅ Выполнено - добавлен structlog в зависимости, настроен JSON формат, создан LoggingMiddleware для correlation_id и контекста, настроено маскирование PII, заменён стандартный logging на structlog в основных файлах (main.py, middleware, use cases)
 
-- [ ] **TASK-011** [P1] Добавить логирование ключевых событий
+- [X] **TASK-011** [P1] Добавить логирование ключевых событий
   - Регистрации пользователей
   - Старт/завершение тренировок
   - Экспорт в Google Sheets
   - Ошибки API
   - **Оценка:** 1 день
+  - **Статус:** ✅ Выполнено - заменён logging на structlog во всех handlers, добавлены структурированные события для регистрации (registration_request_started, registration_approved, registration_rejected), тренировок (workout_started, workout_ended, set_recorded), экспорта Google Sheets (google_sheets_export_started, google_sheets_export_completed), ошибок API (google_sheets_api_error с кодами ошибок)
 
 ### Метрики
 

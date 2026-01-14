@@ -1,5 +1,5 @@
 """Handler для общих команд (Google Sheets и т.д.)."""
-import logging
+import structlog
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from src.application.use_case_interfaces import IGoogleSheetsExportUseCase
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = Router()
 
@@ -18,20 +18,34 @@ class GoogleSheetsStates(StatesGroup):
 @router.message(Command("google_sheets"))
 async def cmd_google_sheets(message: Message) -> None:
     try:
-        logger.info(f"Пользователь {message.from_user.id} использовал команду /google_sheets.")
+        logger.info(
+            "Пользователь использовал команду /google_sheets",
+            event="google_sheets_command",
+            user_id=message.from_user.id,
+        )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Настроить Google Sheets", callback_data="setup_google_sheets")],
             [InlineKeyboardButton(text="Экспортировать данные", callback_data="export_data_to_sheets")]
         ])
         await message.answer("Управление Google Sheets:", reply_markup=keyboard)
     except Exception as e:
-        logger.error(f"Ошибка в cmd_google_sheets для пользователя {message.from_user.id}: {e}", exc_info=True)
+        logger.error(
+            "Ошибка в cmd_google_sheets",
+            event="google_sheets_command_error",
+            user_id=message.from_user.id,
+            error=str(e),
+            exc_info=True,
+        )
         await message.answer("Произошла ошибка при обработке команды /google_sheets.")
 
 @router.callback_query(F.data == "setup_google_sheets")
 async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContext) -> None:
     try:
-        logger.info(f"Пользователь {callback.from_user.id} инициировал настройку Google Sheets.")
+        logger.info(
+            "Пользователь инициировал настройку Google Sheets",
+            event="google_sheets_setup_started",
+            user_id=callback.from_user.id,
+        )
         await callback.message.edit_text(
             "📊 Настройка Google Sheets\n\n"
             "Для подключения таблицы предоставьте доступ сервисному аккаунту и отправьте ссылку на таблицу.\n\n"
@@ -48,7 +62,13 @@ async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContex
         await state.set_state(GoogleSheetsStates.waiting_for_sheet_url)
         await callback.answer()
     except Exception as e:
-        logger.error(f"Ошибка в setup_google_sheets_callback для пользователя {callback.from_user.id}: {e}", exc_info=True)
+        logger.error(
+            "Ошибка в setup_google_sheets_callback",
+            event="google_sheets_setup_error",
+            user_id=callback.from_user.id,
+            error=str(e),
+            exc_info=True,
+        )
         await callback.message.answer("Произошла ошибка при начале настройки Google Sheets.")
         await callback.answer()
 
@@ -63,23 +83,46 @@ async def process_sheet_url(
     sheet_url = message.text.strip()
 
     try:
-        logger.info(f"Пользователь {user_id} отправил URL Google Sheet для настройки.")
+        logger.info(
+            "Пользователь отправил URL Google Sheet для настройки",
+            event="google_sheets_url_submitted",
+            user_id=user_id,
+        )
         success = await google_sheets_export_use_case.setup_google_sheets_config(user_id, sheet_url)
         if success:
+            logger.info(
+                "Пользователь успешно настроил Google Sheets",
+                event="google_sheets_setup_completed",
+                user_id=user_id,
+            )
             await message.answer("Google Sheets успешно настроены.")
-            logger.info(f"Пользователь {user_id} успешно настроил Google Sheets.")
         else:
+            logger.warning(
+                "Пользователь не смог настроить Google Sheets",
+                event="google_sheets_setup_failed",
+                user_id=user_id,
+                reason="unknown",
+            )
             await message.answer("Не удалось настроить Google Sheets.")
-            logger.warning(f"Пользователь {user_id} не смог настроить Google Sheets для URL: {sheet_url}.")
     except ValueError as e:
-        logger.warning(f"Ошибка валидации при настройке Google Sheets для пользователя {user_id}, URL {sheet_url}: {e}")
+        logger.warning(
+            "Ошибка валидации при настройке Google Sheets",
+            event="google_sheets_setup_validation_error",
+            user_id=user_id,
+            error=str(e),
+        )
         await message.answer(f"Ошибка: {e}")
     except Exception as e:
-        logger.error(f"Неожиданная ошибка в process_sheet_url для пользователя {user_id}, URL {sheet_url}: {e}", exc_info=True)
+        logger.error(
+            "Неожиданная ошибка в process_sheet_url",
+            event="google_sheets_setup_error",
+            user_id=user_id,
+            error=str(e),
+            exc_info=True,
+        )
         await message.answer(f"Произошла непредвиденная ошибка: {e}")
     finally:
         await state.clear()
-        logger.debug(f"Состояние очищено для пользователя {user_id}.")
 
 @router.callback_query(F.data == "export_data_to_sheets")
 async def export_data_to_sheets_callback(
@@ -90,19 +133,43 @@ async def export_data_to_sheets_callback(
     user_id = callback.from_user.id
     await callback.message.edit_text("Начинаю экспорт данных в Google Sheets...")
     try:
-        logger.info(f"Пользователь {user_id} инициировал экспорт данных в Google Sheets.")
+        logger.info(
+            "Пользователь инициировал экспорт данных в Google Sheets",
+            event="google_sheets_export_started",
+            user_id=user_id,
+        )
         success = await google_sheets_export_use_case.export_data_to_sheets(user_id)
         if success:
+            logger.info(
+                "Пользователь успешно экспортировал данные в Google Sheets",
+                event="google_sheets_export_completed",
+                user_id=user_id,
+            )
             await callback.message.edit_text("Данные успешно экспортированы в Google Sheets.")
-            logger.info(f"Пользователь {user_id} успешно экспортировал данные в Google Sheets.")
         else:
+            logger.warning(
+                "Пользователь не смог экспортировать данные в Google Sheets",
+                event="google_sheets_export_failed",
+                user_id=user_id,
+                reason="unknown",
+            )
             await callback.message.edit_text("Не удалось экспортировать данные.")
-            logger.warning(f"Пользователь {user_id} не смог экспортировать данные в Google Sheets.")
     except ValueError as e:
-        logger.warning(f"Ошибка валидации при экспорте Google Sheets для пользователя {user_id}: {e}")
+        logger.warning(
+            "Ошибка валидации при экспорте Google Sheets",
+            event="google_sheets_export_validation_error",
+            user_id=user_id,
+            error=str(e),
+        )
         await callback.message.edit_text(f"Ошибка экспорта: {e}")
     except Exception as e:
-        logger.error(f"Неожиданная ошибка в export_data_to_sheets_callback для пользователя {user_id}: {e}", exc_info=True)
+        logger.error(
+            "Неожиданная ошибка в export_data_to_sheets_callback",
+            event="google_sheets_export_error",
+            user_id=user_id,
+            error=str(e),
+            exc_info=True,
+        )
         await callback.message.edit_text(f"Произошла непредвиденная ошибка при экспорте: {e}")
     finally:
         await callback.answer()

@@ -1,8 +1,8 @@
 import asyncio
-import logging
 import signal
 from typing import Optional
 
+import structlog
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -15,13 +15,14 @@ from src.configs.config import config
 from src.container import Container
 from src.infrastructure.web.handlers import registration, workout, machine, common
 from src.infrastructure.web.middlewares import RegistrationCheckMiddleware  # Из middlewares.py файла
+from src.infrastructure.web.middleware.logging import LoggingMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.database import DatabaseMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.dependency_injection import DependencyInjectionMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.idempotency import IdempotencyMiddleware  # Из middleware/ папки
 
 # Настройка логирования
 setup_logging()
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Глобальные переменные для graceful shutdown
 _shutdown_event: Optional[asyncio.Event] = None
@@ -144,6 +145,10 @@ async def main() -> None:
     _dispatcher_instance = dp
     
     # Регистрация middleware (порядок ОЧЕНЬ важен!)
+    # 0. Logging (добавляет correlation_id и контекст - должен быть ПЕРВЫМ)
+    dp.message.middleware(LoggingMiddleware())
+    dp.callback_query.middleware(LoggingMiddleware())
+    
     # 1. Database (создаёт сессию для каждого запроса)
     dp.message.middleware(DatabaseMiddleware(container.session_factory()))
     dp.callback_query.middleware(DatabaseMiddleware(container.session_factory()))

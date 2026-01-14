@@ -1,10 +1,10 @@
-import logging
+import structlog
 from typing import Optional
 from src.application.repositories import IUserRepository
 from src.application.use_case_interfaces import IRegistrationUseCase
 from src.domain.models import User
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class RegistrationUseCase(IRegistrationUseCase):
@@ -23,7 +23,8 @@ class RegistrationUseCase(IRegistrationUseCase):
             existing_user = await self.user_repository.get_by_telegram_id(telegram_id)
             if existing_user:
                 logger.info(
-                    f"Запрос на регистрацию для существующего пользователя {telegram_id}. Пропуск."
+                    "Запрос на регистрацию для существующего пользователя. Пропуск.",
+                    telegram_id=telegram_id,
                 )
                 return False
 
@@ -35,10 +36,10 @@ class RegistrationUseCase(IRegistrationUseCase):
                 is_registered=False,
             )
             await self.user_repository.add(new_user)
-            logger.info(f"Пользователь {telegram_id} успешно отправил запрос на регистрацию.")
+            logger.info("Пользователь успешно отправил запрос на регистрацию.", telegram_id=telegram_id)
             return True
         except Exception as e:
-            logger.error(f"Ошибка при запросе регистрации для пользователя {telegram_id}: {e}")
+            logger.error("Ошибка при запросе регистрации", telegram_id=telegram_id, error=str(e), exc_info=True)
             return False
 
     async def approve_registration(self, user_id: int) -> bool:
@@ -47,14 +48,15 @@ class RegistrationUseCase(IRegistrationUseCase):
             if user and not user.is_registered:
                 user.is_registered = True
                 await self.user_repository.update(user)
-                logger.info(f"Регистрация пользователя {user_id} одобрена.")
+                logger.info("Регистрация пользователя одобрена.", user_id=user_id)
                 return True
             logger.warning(
-                f"Не удалось одобрить регистрацию для пользователя {user_id}: Пользователь не найден или уже зарегистрирован."
+                "Не удалось одобрить регистрацию: Пользователь не найден или уже зарегистрирован.",
+                user_id=user_id,
             )
             return False
         except Exception as e:
-            logger.error(f"Ошибка при одобрении регистрации для пользователя {user_id}: {e}")
+            logger.error("Ошибка при одобрении регистрации", user_id=user_id, error=str(e), exc_info=True)
             return False
 
     async def reject_registration(self, user_id: int) -> bool:
@@ -62,14 +64,15 @@ class RegistrationUseCase(IRegistrationUseCase):
             user = await self.user_repository.get_by_id(user_id)
             if user and not user.is_registered:
                 await self.user_repository.delete(user_id)
-                logger.info(f"Регистрация пользователя {user_id} отклонена и запись удалена.")
+                logger.info("Регистрация пользователя отклонена и запись удалена.", user_id=user_id)
                 return True
             logger.warning(
-                f"Не удалось отклонить регистрацию для пользователя {user_id}: Пользователь не найден или уже зарегистрирован."
+                "Не удалось отклонить регистрацию: Пользователь не найден или уже зарегистрирован.",
+                user_id=user_id,
             )
             return False
         except Exception as e:
-            logger.error(f"Ошибка при отклонении регистрации для пользователя {user_id}: {e}")
+            logger.error("Ошибка при отклонении регистрации", user_id=user_id, error=str(e), exc_info=True)
             return False
 
     async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
@@ -78,7 +81,7 @@ class RegistrationUseCase(IRegistrationUseCase):
             user = await self.user_repository.get_by_telegram_id(telegram_id)
             return user
         except Exception as e:
-            logger.error(f"Ошибка при получении пользователя {telegram_id}: {e}")
+            logger.error("Ошибка при получении пользователя", telegram_id=telegram_id, error=str(e), exc_info=True)
             return None
 
     async def check_user_registered(self, telegram_id: int) -> bool:
@@ -87,5 +90,5 @@ class RegistrationUseCase(IRegistrationUseCase):
             user = await self.user_repository.get_by_telegram_id(telegram_id)
             return user is not None and user.is_registered
         except Exception as e:
-            logger.error(f"Ошибка при проверке регистрации пользователя {telegram_id}: {e}")
+            logger.error("Ошибка при проверке регистрации пользователя", telegram_id=telegram_id, error=str(e), exc_info=True)
             return False
