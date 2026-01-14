@@ -181,12 +181,20 @@ class WorkoutSessionRepository(IWorkoutSessionRepository):
         Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
         """
         try:
-            stmt = (
-                update(WorkoutSession)
-                .where(WorkoutSession.id == session_id)
-                .values(ended_at=datetime.now(timezone.utc))
-            )
-            await self.session.execute(stmt)
+            # Получаем объект тренировки для обновления
+            workout_session = await self.get_by_id(session_id)
+            if not workout_session:
+                raise ValueError(f"Тренировка {session_id} не найдена")
+            
+            # Устанавливаем ended_at с явным указанием timezone
+            workout_session.ended_at = datetime.now(timezone.utc)
+            
+            # Синхронизируем изменения, но не коммитим
+            await self.session.flush()
+            
+            # Обновляем объект из БД, чтобы убедиться, что timezone правильный
+            await self.session.refresh(workout_session)
+            
             # Не делаем commit() - это сделает middleware/use case
             logger.info(f"Ended workout session {session_id}.")
         except SQLAlchemyError as e:

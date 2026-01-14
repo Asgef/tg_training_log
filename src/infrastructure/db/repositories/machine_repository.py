@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, List, Any
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
@@ -213,20 +213,30 @@ class MachineRepository(IMachineRepository):
         Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
         """
         try:
-            # Удаляем все существующие связи
-            stmt = select(MachineMuscle).where(MachineMuscle.machine_id == machine_id)
+            # Получаем объект Machine с загруженными мышцами
+            machine = await self.get_by_id(machine_id)
+            if not machine:
+                raise ValueError(f"Тренажёр {machine_id} не найден")
+            
+            # Получаем объекты Muscle для новых связей
+            from src.domain.models import Muscle
+            stmt = select(Muscle).where(Muscle.id.in_(muscle_ids))
             result = await self.session.execute(stmt)
-            existing_links = result.scalars().all()
+            new_muscles = list(result.scalars().all())
             
-            for link in existing_links:
-                await self.session.delete(link)
+            if len(new_muscles) != len(muscle_ids):
+                found_ids = {m.id for m in new_muscles}
+                missing_ids = set(muscle_ids) - found_ids
+                raise ValueError(f"Мышцы с ID {missing_ids} не найдены")
             
-            # Добавляем новые связи
-            for muscle_id in muscle_ids:
-                machine_muscle = MachineMuscle(
-                    machine_id=machine_id, muscle_id=muscle_id
-                )
-                self.session.add(machine_muscle)
+            # Очищаем существующие связи через relationship
+            machine.muscles.clear()
+            
+            # Синхронизируем удаление с БД
+            await self.session.flush()
+            
+            # Добавляем новые связи через relationship
+            machine.muscles.extend(new_muscles)
             
             # Не делаем commit() - это сделает middleware/use case
             logger.info(

@@ -66,7 +66,7 @@ async def test_transaction_multiple_operations(test_session, user_repository, ma
 
 @pytest.mark.integration
 async def test_transaction_rollback_on_error(test_session, user_repository, machine_repository, test_user_data):
-    """Тест rollback при ошибке."""
+    """Тест rollback при ошибке foreign key constraint."""
     # Создаём пользователя
     user = User(**test_user_data)
     await user_repository.add(user)
@@ -79,12 +79,12 @@ async def test_transaction_rollback_on_error(test_session, user_repository, mach
     await test_session.flush()
     
     # Теперь попытаемся создать тренажёр с несуществующим user_id
+    # IntegrityError должен быть поднят при add() (который вызывает flush() внутри)
     invalid_machine = Machine(name="Invalid Machine", user_id=999999999)
-    await machine_repository.add(invalid_machine)
     
-    # При flush должна быть ошибка IntegrityError
+    # При add() должна быть ошибка IntegrityError из-за foreign key constraint
     with pytest.raises(IntegrityError):
-        await test_session.flush()
+        await machine_repository.add(invalid_machine)
     
     # Откатываем транзакцию
     await test_session.rollback()
@@ -100,7 +100,7 @@ async def test_transaction_rollback_on_error(test_session, user_repository, mach
 
 @pytest.mark.integration
 async def test_transaction_cascade_delete(test_session, user_repository, machine_repository, test_user_data):
-    """Тест каскадного удаления (если настроено в БД)."""
+    """Тест проверки foreign key constraint при удалении пользователя с тренажёрами."""
     # Создаём пользователя
     user = User(**test_user_data)
     await user_repository.add(user)
@@ -113,18 +113,23 @@ async def test_transaction_cascade_delete(test_session, user_repository, machine
     
     machine_id = machine.id
     
-    # Удаляем пользователя
+    # Пытаемся удалить пользователя с тренажёром
+    # Должна быть ошибка IntegrityError из-за foreign key constraint
     await user_repository.delete(test_user_data["id"])
-    await test_session.commit()
     
-    # Проверяем, что пользователь удалён
-    assert await user_repository.get_by_id(test_user_data["id"]) is None
+    # При commit должна быть ошибка IntegrityError
+    with pytest.raises(IntegrityError):
+        await test_session.commit()
     
-    # Проверяем тренажёр (зависит от настроек каскада в БД)
-    # В текущей модели каскад не настроен, поэтому тренажёр может остаться
-    # или быть удалён в зависимости от настроек БД
+    # Откатываем транзакцию
+    await test_session.rollback()
+    
+    # Проверяем, что пользователь и тренажёр остались (из-за rollback)
+    retrieved_user = await user_repository.get_by_id(test_user_data["id"])
+    assert retrieved_user is not None
+    
     retrieved_machine = await machine_repository.get_by_id(machine_id)
-    # В SQLite без каскада тренажёр останется, но с невалидным user_id
+    assert retrieved_machine is not None
 
 
 @pytest.mark.integration

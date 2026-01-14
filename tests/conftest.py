@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 from sqlalchemy.pool import StaticPool
+from sqlalchemy import event
 
 from src.domain.models import Base
 from src.infrastructure.db.repositories.user_repository import UserRepository
@@ -41,6 +42,7 @@ async def test_engine():
     
     Используется для быстрых unit тестов.
     Каждый тест получает чистую БД.
+    Включает проверку foreign key constraints для SQLite.
     """
     # SQLite in-memory для быстрых тестов
     engine = create_async_engine(
@@ -49,6 +51,14 @@ async def test_engine():
         poolclass=StaticPool,  # Для in-memory БД
         connect_args={"check_same_thread": False},
     )
+    
+    # Включаем проверку foreign keys для SQLite
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        """Включает проверку foreign key constraints в SQLite."""
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
     
     # Создаём все таблицы
     async with engine.begin() as conn:

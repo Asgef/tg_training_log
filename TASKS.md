@@ -261,30 +261,32 @@
 
 ### Тестирование
 
-- [ ] **TASK-048** [P2] Исправить обновление связей Machine-Muscle
+- [X] **TASK-048** [P2] Исправить обновление связей Machine-Muscle
   - Проблема: `update_machine_muscles` не удаляет старые связи перед добавлением новых
   - Тест: `test_update_machine_muscles` падает - старые связи остаются
-  - Решение: Проверить логику удаления связей в `MachineRepository.update_machine_muscles`
-  - Возможно нужно добавить `flush()` перед удалением или использовать другой подход
+  - Решение: Использовать работу с relationship напрямую через `machine.muscles.clear()` и `machine.muscles.extend()` вместо прямого удаления через delete statement
   - **Файл:** `src/infrastructure/db/repositories/machine_repository.py:208-246`
   - **Тест:** `tests/integration/test_machine_repository.py::test_update_machine_muscles`
   - **Оценка:** 2-4 часа
+  - **Статус:** ✅ Выполнено - исправлена логика обновления связей через работу с relationship, все тесты проходят
 
-- [ ] **TASK-049** [P2] Исправить timezone в WorkoutSessionRepository.end_session
+- [X] **TASK-049** [P2] Исправить timezone в WorkoutSessionRepository.end_session
   - Проблема: `ended_at` и `started_at` имеют разные timezone (offset-naive vs offset-aware)
   - Тест: `test_end_session` падает при сравнении datetime
-  - Решение: Убедиться, что `end_session` использует `datetime.now(timezone.utc)` как и `start_session`
+  - Решение: Заменить использование `update()` statement на работу с объектом напрямую, добавить `refresh()` после `flush()` для правильной обработки timezone SQLAlchemy
   - **Файл:** `src/infrastructure/db/repositories/workout_session_repository.py:178-203`
   - **Тест:** `tests/integration/test_workout_session_repository.py::test_end_session`
   - **Оценка:** 1 час
+  - **Статус:** ✅ Выполнено - исправлена обработка timezone через работу с объектом напрямую вместо update statement, все тесты проходят
 
-- [ ] **TASK-050** [P3] Настроить проверку foreign keys в тестах
+- [X] **TASK-050** [P3] Настроить проверку foreign keys в тестах
   - Проблема: SQLite по умолчанию не проверяет foreign key constraints
   - Тест: `test_transaction_rollback_on_error` не может проверить IntegrityError
-  - Решение: Включить `PRAGMA foreign_keys = ON` в test fixtures или использовать PostgreSQL для integration тестов
+  - Решение: Добавлен event listener в `test_engine` fixture, который выполняет `PRAGMA foreign_keys = ON` при каждом подключении к SQLite
   - **Файл:** `tests/conftest.py`
   - **Тест:** `tests/integration/test_transactions.py::test_transaction_rollback_on_error`
   - **Оценка:** 1-2 часа
+  - **Статус:** ✅ Выполнено - включена проверка foreign keys через event listener, исправлены тесты для корректной обработки IntegrityError, все тесты проходят
 
 - [X] **TASK-028** [P3] Настроить pytest
   - Установить `pytest`, `pytest-asyncio`, `pytest-cov`
