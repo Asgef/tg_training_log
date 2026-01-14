@@ -7,7 +7,7 @@ import structlog
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = structlog.get_logger(__name__)
 
@@ -19,7 +19,7 @@ class DatabaseMiddleware(BaseMiddleware):
     и автоматически делает commit при успехе или rollback при ошибке.
     """
 
-    def __init__(self, session_factory):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         """Инициализация middleware.
         
         Args:

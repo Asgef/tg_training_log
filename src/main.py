@@ -1,6 +1,6 @@
 import asyncio
 import signal
-from typing import Optional
+from typing import Optional, Any
 
 import structlog
 from aiogram import Bot, Dispatcher
@@ -103,7 +103,7 @@ def setup_signal_handlers() -> None:
     """Настройка обработчиков сигналов для graceful shutdown."""
     global _shutdown_event
     
-    def signal_handler(signum: int, frame) -> None:
+    def signal_handler(signum: int, frame: Any) -> None:
         """Обработчик сигналов SIGTERM и SIGINT."""
         signal_name = signal.Signals(signum).name
         logger.info(f"Получен сигнал {signal_name}, инициирую graceful shutdown...")

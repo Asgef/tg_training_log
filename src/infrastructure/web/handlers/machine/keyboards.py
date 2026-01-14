@@ -1,7 +1,9 @@
 """Класс для построения клавиатур тренажёров."""
+from typing import List
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
+from src.domain.models import MuscleGroup, Muscle, Machine
 
 
 class KeyboardBuilder:
@@ -18,7 +20,7 @@ class KeyboardBuilder:
     
     async def build_muscle_groups_keyboard(
         self,
-        muscle_groups,
+        muscle_groups: List[MuscleGroup],
         selected_muscle_ids: list[int],
         machine_id: int | None,
         is_creation: bool = False,
@@ -93,7 +95,7 @@ class KeyboardBuilder:
     
     def build_individual_muscles_keyboard(
         self,
-        all_muscles,
+        all_muscles: List[Muscle],
         selected_muscle_ids: list[int],
         machine_id: int | None,
         is_creation: bool = False,
@@ -187,7 +189,7 @@ class KeyboardBuilder:
         ])
     
     @staticmethod
-    def build_machine_list_keyboard(machines) -> InlineKeyboardMarkup:
+    def build_machine_list_keyboard(machines: List[Machine]) -> InlineKeyboardMarkup:
         """
         Построение клавиатуры со списком тренажёров.
         
@@ -225,7 +227,7 @@ class KeyboardBuilder:
 
 # Функции-обертки для обратной совместимости
 async def build_muscle_groups_keyboard(
-    muscle_groups,
+    muscle_groups: List[MuscleGroup],
     selected_muscle_ids: list[int],
     machine_id: int | None,
     machine_management_use_case: IMachineManagementUseCase,
@@ -251,7 +253,7 @@ async def build_muscle_groups_keyboard(
 
 
 def build_individual_muscles_keyboard(
-    all_muscles,
+    all_muscles: List[Muscle],
     selected_muscle_ids: list[int],
     machine_id: int | None,
     is_creation: bool = False,

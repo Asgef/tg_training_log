@@ -1,10 +1,15 @@
 # src/domain/models.py
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship, validates
 from sqlalchemy import BigInteger, Boolean, Text, Integer, Numeric, TIMESTAMP, ForeignKey
 from typing import List
 from datetime import datetime, timezone
 
 Base = declarative_base()
+
+# Константы для валидации
+MAX_NAME_LENGTH = 255
+MIN_WEIGHT = 0.01
+MIN_REPS = 1
 
 
 class User(Base):
@@ -36,6 +41,15 @@ class MuscleGroup(Base):
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
+    @validates("name")
+    def validate_name(self, key: str, value: str) -> str:
+        """Валидация названия группы мышц."""
+        if not value or not value.strip():
+            raise ValueError("Название группы мышц не может быть пустым")
+        if len(value.strip()) > MAX_NAME_LENGTH:
+            raise ValueError(f"Название группы мышц не может быть длиннее {MAX_NAME_LENGTH} символов")
+        return value.strip()
+
 
 class Muscle(Base):
     __tablename__ = "muscles"
@@ -52,6 +66,15 @@ class Muscle(Base):
     group: Mapped["MuscleGroup"] = relationship(
         "MuscleGroup", backref="muscles", lazy="selectin"
     )
+
+    @validates("name")
+    def validate_name(self, key: str, value: str) -> str:
+        """Валидация названия мышцы."""
+        if not value or not value.strip():
+            raise ValueError("Название мышцы не может быть пустым")
+        if len(value.strip()) > MAX_NAME_LENGTH:
+            raise ValueError(f"Название мышцы не может быть длиннее {MAX_NAME_LENGTH} символов")
+        return value.strip()
 
 
 class Machine(Base):
@@ -71,6 +94,15 @@ class Machine(Base):
     muscles: Mapped[List["Muscle"]] = relationship(
         "Muscle", secondary="machine_muscles", backref="machines", lazy="selectin"
     )
+
+    @validates("name")
+    def validate_name(self, key: str, value: str) -> str:
+        """Валидация названия тренажёра."""
+        if not value or not value.strip():
+            raise ValueError("Название тренажёра не может быть пустым")
+        if len(value.strip()) > MAX_NAME_LENGTH:
+            raise ValueError(f"Название тренажёра не может быть длиннее {MAX_NAME_LENGTH} символов")
+        return value.strip()
 
 
 class MachineMuscle(Base):
@@ -107,6 +139,20 @@ class SetEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
+
+    @validates("weight")
+    def validate_weight(self, key: str, value: float) -> float:
+        """Валидация веса подхода."""
+        if value <= 0:
+            raise ValueError(f"Вес должен быть больше {MIN_WEIGHT}")
+        return value
+
+    @validates("reps")
+    def validate_reps(self, key: str, value: int) -> int:
+        """Валидация количества повторений."""
+        if value < MIN_REPS:
+            raise ValueError(f"Количество повторений должно быть не меньше {MIN_REPS}")
+        return value
 
 
 class ProcessedUpdate(Base):

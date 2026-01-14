@@ -32,9 +32,8 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         muscle_ids: List[int],
     ) -> MachineDTO:
         try:
-            if not name or len(name.strip()) == 0:
-                logger.warning(f"Пользователь {user_id} попытался добавить тренажёр с пустым названием.")
-                raise ValueError("Название тренажера не может быть пустым.")
+            # Валидация name уже выполнена на уровне DTO в handlers
+            # Здесь оставляем только бизнес-валидацию (проверка дубликатов)
 
             existing_machine = await self.machine_repository.get_user_machine_by_name(
                 user_id, name.strip()
@@ -123,20 +122,22 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                 return None
 
             if name:
-                if name.strip() != machine.name:
+                # Валидация name уже выполнена на уровне DTO в handlers
+                name_stripped = name.strip()
+                if name_stripped != machine.name:
                     existing_machine = (
                         await self.machine_repository.get_user_machine_by_name(
-                            user_id, name.strip()
+                            user_id, name_stripped
                         )
                     )
                     if existing_machine and existing_machine.id != machine_id:
                         logger.warning(
-                            f"Пользователь {user_id} попытался переименовать тренажёр {machine_id} на дублирующееся название: {name.strip()}"
+                            f"Пользователь {user_id} попытался переименовать тренажёр {machine_id} на дублирующееся название: {name_stripped}"
                         )
                         raise ValueError(
-                            f"Тренажер с названием '{name.strip()}' уже существует."
+                            f"Тренажер с названием '{name_stripped}' уже существует."
                         )
-                machine.name = name.strip()
+                machine.name = name_stripped
             if photo_file_id is not None:
                 machine.photo_file_id = photo_file_id
             if is_archived is not None:

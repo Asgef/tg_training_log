@@ -1,4 +1,7 @@
-"""DTO для валидации входных данных от пользователей."""
+"""DTO для валидации входных данных от пользователей.
+
+Все сообщения об ошибках стандартизированы для единообразия.
+"""
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 

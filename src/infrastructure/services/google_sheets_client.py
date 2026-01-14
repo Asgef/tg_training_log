@@ -137,7 +137,7 @@ class GoogleSheetsClient:
             raise RuntimeError(f"Не удалось инициализировать GoogleSheetsClient: {e}")
 
     @retry_google_sheets_operation
-    def open_spreadsheet(self, spreadsheet_id: str):
+    def open_spreadsheet(self, spreadsheet_id: str) -> gspread.Spreadsheet:
         try:
             spreadsheet = self.gc.open_by_key(spreadsheet_id)
             logger.debug(
@@ -177,8 +177,8 @@ class GoogleSheetsClient:
 
     @retry_google_sheets_operation
     def get_or_create_worksheet(
-        self, spreadsheet, worksheet_name: str, headers: List[str]
-    ):
+        self, spreadsheet: gspread.Spreadsheet, worksheet_name: str, headers: List[str]
+    ) -> gspread.Worksheet:
         try:
             worksheet = spreadsheet.worksheet(worksheet_name)
             if not worksheet.row_values(1):
@@ -237,7 +237,7 @@ class GoogleSheetsClient:
         worksheet_name: str,
         data: List[List[Any]],
         headers: List[str],
-    ):
+    ) -> None:
         try:
             spreadsheet = self.open_spreadsheet(spreadsheet_id)
             worksheet = self.get_or_create_worksheet(
@@ -281,7 +281,7 @@ class GoogleSheetsClient:
         worksheet_name: str,
         df: pd.DataFrame,
         key_column: str,
-    ):
+    ) -> None:
         try:
             spreadsheet = self.open_spreadsheet(spreadsheet_id)
             worksheet = self.get_or_create_worksheet(

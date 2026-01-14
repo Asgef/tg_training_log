@@ -127,14 +127,8 @@ class WorkoutUseCase(IWorkoutUseCase):
                 )
                 raise ValueError(f"Тренажер с ID {machine_id} архивирован и недоступен для записи подходов.")
 
-            if weight <= 0 or reps <= 0:
-                logger.warning(
-                    "Пользователь предоставил неверные данные подхода.",
-                    user_id=user_id,
-                    weight=weight,
-                    reps=reps,
-                )
-                raise ValueError("Вес и повторы должны быть больше 0")
+            # Валидация weight и reps уже выполнена на уровне DTO в handlers
+            # Здесь оставляем только бизнес-валидацию
 
             new_set_entry = SetEntry(
                 session_id=active_session.id,

@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import List
+from typing import List, Any
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ class Config:
                 "GOOGLE_CREDENTIALS_JSON не установлен в переменных окружения"
             )
 
-    def get_google_credentials_dict(self) -> dict:
+    def get_google_credentials_dict(self) -> dict[str, Any]:
         """Возвращает Google credentials в виде словаря."""
         if not self.google_credentials_json:
             raise ValueError(
