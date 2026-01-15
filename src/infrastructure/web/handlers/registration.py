@@ -15,7 +15,7 @@ from aiogram.fsm.state import State, StatesGroup
 from pydantic import ValidationError
 
 from src.configs.config import config
-from src.application.use_case_interfaces import IRegistrationUseCase
+from src.application.use_case_interfaces import IRegistrationUseCase, IWorkoutUseCase
 from src.application.dto import RegistrationInputDTO
 
 logger = structlog.get_logger(__name__)
@@ -25,22 +25,32 @@ router = Router()
 ADMIN_IDS = config.admin_ids
 
 
-def get_main_menu() -> ReplyKeyboardMarkup:
+def build_main_menu(has_active_workout: bool) -> ReplyKeyboardMarkup:
     """Создает главное меню с кнопками для зарегистрированных пользователей."""
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="🏋️ Начать тренировку"),
-                KeyboardButton(text="✅ Завершить тренировку"),
-            ],
+    workout_row = (
+        [
+            KeyboardButton(text="✅ Завершить тренировку"),
+            KeyboardButton(text="❌ Отменить тренировку"),
+        ]
+        if has_active_workout
+        else [KeyboardButton(text="🏋️ Начать тренировку")]
+    )
+    keyboard_rows: list[list[KeyboardButton]] = [workout_row]
+
+    if has_active_workout:
+        keyboard_rows.append(
             [
                 KeyboardButton(text="📝 Записать подход"),
                 KeyboardButton(text="💪 Тренажеры"),
-            ],
-            [
-                KeyboardButton(text="📊 Google Sheets"),
-            ],
-        ],
+            ]
+        )
+    else:
+        keyboard_rows.append([KeyboardButton(text="💪 Тренажеры")])
+
+    keyboard_rows.append([KeyboardButton(text="📊 Google Sheets")])
+
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=keyboard_rows,
         resize_keyboard=True,
         input_field_placeholder="Выберите действие из меню",
     )
@@ -54,6 +64,7 @@ class RegistrationStates(StatesGroup):
 async def cmd_start(
     message: Message,
     registration_use_case: IRegistrationUseCase,
+    workout_use_case: IWorkoutUseCase,
     state: FSMContext = None,
 ) -> None:
     """Обработчик команды /start."""
@@ -62,6 +73,9 @@ async def cmd_start(
         user = await registration_use_case.get_user_by_telegram_id(user_telegram_id)
 
         if user and user.is_registered:
+            has_active_workout = bool(
+                await workout_use_case.get_active_workout_session(user_telegram_id)
+            )
             logger.info(
                 "Пользователь уже зарегистрирован и использовал /start",
                 event_type="user_start_command",
@@ -70,7 +84,7 @@ async def cmd_start(
             )
             await message.answer(
                 f"С возвращением, {message.from_user.full_name}! Вы уже зарегистрированы.",
-                reply_markup=get_main_menu(),
+                reply_markup=build_main_menu(has_active_workout),
             )
         elif user and not user.is_registered:
             logger.info(
@@ -241,6 +255,7 @@ async def admin_approve_request(
     callback: CallbackQuery,
     bot: Bot,
     registration_use_case: IRegistrationUseCase,
+    workout_use_case: IWorkoutUseCase,
 ) -> None:
     """Обработчик одобрения регистрации администратором."""
     try:
@@ -273,10 +288,13 @@ async def admin_approve_request(
             )
             await callback.message.edit_text(f"Запрос от пользователя {user_id} одобрен.")
             try:
+                has_active_workout = bool(
+                    await workout_use_case.get_active_workout_session(user_id)
+                )
                 await bot.send_message(
                     chat_id=user_id,
                     text="Ваша регистрация одобрена! Теперь вы можете пользоваться ботом.",
-                    reply_markup=get_main_menu(),
+                    reply_markup=build_main_menu(has_active_workout),
                 )
                 logger.info(
                     "Пользователь уведомлён об одобренной регистрации",
@@ -392,6 +410,7 @@ async def admin_reject_request(
 async def cmd_menu(
     message: Message,
     registration_use_case: IRegistrationUseCase,
+    workout_use_case: IWorkoutUseCase,
 ) -> None:
     """Показывает главное меню."""
     try:
@@ -399,9 +418,12 @@ async def cmd_menu(
         is_registered = await registration_use_case.check_user_registered(user_telegram_id)
         
         if is_registered:
+            has_active_workout = bool(
+                await workout_use_case.get_active_workout_session(user_telegram_id)
+            )
             await message.answer(
                 "Главное меню:",
-                reply_markup=get_main_menu(),
+                reply_markup=build_main_menu(has_active_workout),
             )
         else:
             await message.answer("Для использования бота вам необходимо зарегистрироваться.")

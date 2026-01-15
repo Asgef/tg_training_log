@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, Any
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -163,6 +163,47 @@ class SetEntryRepository(ISetEntryRepository):
         except SQLAlchemyError as e:
             logger.error(
                 f"SQLAlchemyError при получении последнего подхода для пользователя {user_id}, тренажёр {machine_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def has_entries_for_session(self, session_id: int) -> bool:
+        """Проверяет, есть ли подходы у тренировки."""
+        try:
+            stmt = select(SetEntry.id).where(SetEntry.session_id == session_id).limit(1)
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none() is not None
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError при проверке подходов для тренировки {session_id}: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при проверке подходов для тренировки {session_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def delete_by_session_id(self, session_id: int) -> int:
+        """Удаляет все подходы по ID тренировки."""
+        try:
+            result = await self.session.execute(
+                delete(SetEntry).where(SetEntry.session_id == session_id)
+            )
+            deleted = result.rowcount or 0
+            logger.info(f"Удалено подходов для тренировки {session_id}: {deleted}.")
+            return deleted
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError при удалении подходов для тренировки {session_id}: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при удалении подходов для тренировки {session_id}: {e}",
                 exc_info=True,
             )
             raise

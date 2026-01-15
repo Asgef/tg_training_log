@@ -108,6 +108,16 @@ class ISetEntryRepository(BaseRepository):
         """Возвращает последний подход пользователя по тренажёру."""
         pass
 
+    @abstractmethod
+    async def has_entries_for_session(self, session_id: int) -> bool:
+        """Проверяет, есть ли подходы у тренировки."""
+        pass
+
+    @abstractmethod
+    async def delete_by_session_id(self, session_id: int) -> int:
+        """Удаляет все подходы по ID тренировки, возвращает количество удалённых."""
+        pass
+
 
 class IMuscleRepository(BaseRepository):
     @abstractmethod

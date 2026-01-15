@@ -2,7 +2,7 @@
 import structlog
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from pydantic import ValidationError
@@ -13,6 +13,7 @@ from src.infrastructure.web.handlers.workout_keyboards import (
     build_machine_selection_keyboard,
     build_set_params_keyboard,
 )
+from src.infrastructure.web.handlers.registration import build_main_menu
 
 logger = structlog.get_logger(__name__)
 
@@ -49,6 +50,19 @@ def _build_set_params_text(weight: float, reps: int, failure: bool) -> str:
     return "\n".join(lines)
 
 
+def _build_cancel_confirmation_keyboard() -> InlineKeyboardMarkup:
+    """Строит клавиатуру подтверждения отмены тренировки."""
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text="✅ Да, удалить всё", callback_data="workout_cancel_confirm"
+            ),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="workout_cancel_abort"),
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def _order_machines(machines, recent_ids: list[int]):
     machines_by_id = {machine.id: machine for machine in machines}
     recent = [machines_by_id[mid] for mid in recent_ids if mid in machines_by_id]
@@ -76,7 +90,10 @@ async def cmd_workout_start(
                 user_id=user_id,
                 session_id=session.id,
             )
-            await message.answer("Тренировка начата! Теперь вы можете записывать подходы.")
+            await message.answer(
+                "Тренировка начата! Теперь вы можете записывать подходы.",
+                reply_markup=build_main_menu(True),
+            )
         else:
             logger.warning(
                 "Пользователь не смог начать новую тренировку; активная сессия уже существует",
@@ -84,7 +101,9 @@ async def cmd_workout_start(
                 user_id=user_id,
                 reason="active_session_exists",
             )
-            await message.answer("У вас уже есть активная тренировка. Завершите ее, прежде чем начинать новую.")
+            await message.answer(
+                "У вас уже есть активная тренировка. Завершите ее, прежде чем начинать новую."
+            )
     except ValueError as e:
         logger.warning(
             "Пользователь не может начать тренировку",
@@ -111,6 +130,13 @@ async def cmd_workout_end(
     """Обработчик команды /workout_end."""
     try:
         user_id = message.from_user.id
+        has_sets = await workout_use_case.has_sets_in_active_workout(user_id)
+        if not has_sets:
+            await message.answer(
+                "В этой тренировке нет подходов. Добавьте подходы или отмените тренировку."
+            )
+            return
+
         session = await workout_use_case.end_current_workout(user_id)
         if session:
             logger.info(
@@ -119,7 +145,10 @@ async def cmd_workout_end(
                 user_id=user_id,
                 session_id=session.id,
             )
-            await message.answer("Тренировка завершена! Все подходы сохранены.")
+            await message.answer(
+                "Тренировка завершена! Все подходы сохранены.",
+                reply_markup=build_main_menu(False),
+            )
         else:
             logger.warning(
                 "Пользователь не смог завершить тренировку; активная сессия не найдена",
@@ -512,7 +541,10 @@ async def handle_start_workout_button(
                 session_id=session.id,
                 source="button",
             )
-            await message.answer("Тренировка начата! Теперь вы можете записывать подходы.")
+            await message.answer(
+                "Тренировка начата! Теперь вы можете записывать подходы.",
+                reply_markup=build_main_menu(True),
+            )
         else:
             logger.warning(
                 "Пользователь не смог начать новую тренировку через кнопку; активная сессия уже существует",
@@ -550,6 +582,67 @@ async def handle_end_workout_button(
 ) -> None:
     """Обработчик кнопки 'Завершить тренировку'."""
     await cmd_workout_end(message, workout_use_case)
+
+
+@router.message(F.text == "❌ Отменить тренировку")
+async def handle_cancel_workout_button(
+    message: Message,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Обработчик кнопки 'Отменить тренировку'."""
+    user_id = message.from_user.id
+    active_session = await workout_use_case.get_active_workout_session(user_id)
+    if not active_session:
+        await message.answer("У вас нет активной тренировки для отмены.")
+        return
+
+    has_sets = await workout_use_case.has_sets_in_active_workout(user_id)
+    if not has_sets:
+        success = await workout_use_case.cancel_current_workout(user_id)
+        if success:
+            await message.answer(
+                "Тренировка отменена.",
+                reply_markup=build_main_menu(False),
+            )
+        else:
+            await message.answer("Не удалось отменить тренировку. Попробуйте позже.")
+        return
+
+    warning_text = (
+        "⚠️ У тебя уже есть подходы в этой тренировке.\n"
+        "Если ты отменишь тренировку, все они будут удалены.\n\n"
+        "❗ Продолжить?"
+    )
+    await message.answer(
+        warning_text,
+        reply_markup=_build_cancel_confirmation_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "workout_cancel_confirm")
+async def handle_cancel_workout_confirm(
+    callback: CallbackQuery,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Подтверждение отмены тренировки."""
+    user_id = callback.from_user.id
+    success = await workout_use_case.cancel_current_workout(user_id)
+    if success:
+        await callback.message.edit_text("Тренировка отменена. Все подходы удалены.")
+        await callback.message.answer(
+            "Главное меню:",
+            reply_markup=build_main_menu(False),
+        )
+        await callback.answer()
+    else:
+        await callback.answer("Не удалось отменить тренировку.", show_alert=True)
+
+
+@router.callback_query(F.data == "workout_cancel_abort")
+async def handle_cancel_workout_abort(callback: CallbackQuery) -> None:
+    """Отмена подтверждения отмены тренировки."""
+    await callback.message.edit_text("Тренировка продолжается")
+    await callback.answer()
 
 
 @router.message(F.text == "📝 Записать подход")

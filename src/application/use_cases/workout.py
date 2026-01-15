@@ -209,3 +209,55 @@ class WorkoutUseCase(IWorkoutUseCase):
                 exc_info=True,
             )
             return None
+
+    async def has_sets_in_active_workout(self, user_id: int) -> bool:
+        try:
+            active_session = (
+                await self.workout_session_repository.get_active_session_for_user(
+                    user_id
+                )
+            )
+            if not active_session:
+                return False
+            return await self.set_entry_repository.has_entries_for_session(
+                active_session.id
+            )
+        except Exception as e:
+            logger.error(
+                "Ошибка при проверке подходов в активной тренировке",
+                user_id=user_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+
+    async def cancel_current_workout(self, user_id: int) -> bool:
+        try:
+            active_session = (
+                await self.workout_session_repository.get_active_session_for_user(
+                    user_id
+                )
+            )
+            if not active_session:
+                logger.info(
+                    "Пользователь попытался отменить тренировку без активной сессии.",
+                    user_id=user_id,
+                )
+                return False
+
+            await self.set_entry_repository.delete_by_session_id(active_session.id)
+            await self.workout_session_repository.delete(active_session.id)
+            logger.info(
+                "Пользователь отменил тренировку.",
+                user_id=user_id,
+                session_id=active_session.id,
+            )
+            return True
+        except Exception as e:
+            logger.error(
+                "Ошибка при отмене тренировки",
+                user_id=user_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return False

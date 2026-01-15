@@ -83,6 +83,16 @@ class IWorkoutUseCase(ABC):
         """Получает последний подход пользователя по тренажёру."""
         pass
 
+    @abstractmethod
+    async def has_sets_in_active_workout(self, user_id: int) -> bool:
+        """Проверяет, есть ли подходы в активной тренировке пользователя."""
+        pass
+
+    @abstractmethod
+    async def cancel_current_workout(self, user_id: int) -> bool:
+        """Отменяет текущую активную тренировку пользователя."""
+        pass
+
 
 class IMachineManagementUseCase(ABC):
     @abstractmethod
