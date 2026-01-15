@@ -367,3 +367,48 @@ class TestWorkoutUseCase:
 
         # Проверяем результат
         assert result is None
+
+    async def test_get_recent_machine_ids(
+        self,
+        workout_use_case,
+        mock_set_entry_repository,
+    ):
+        """Тест получения последних использованных тренажёров."""
+        mock_set_entry_repository.get_recent_machine_ids.return_value = [3, 2, 1]
+
+        result = await workout_use_case.get_recent_machine_ids(user_id=123456789, limit=5)
+
+        assert result == [3, 2, 1]
+        mock_set_entry_repository.get_recent_machine_ids.assert_called_once_with(
+            user_id=123456789,
+            limit=5,
+        )
+
+    async def test_get_last_set_for_machine(
+        self,
+        workout_use_case,
+        mock_set_entry_repository,
+    ):
+        """Тест получения последнего подхода по тренажёру."""
+        now = datetime.now(timezone.utc)
+        last_set = SetEntry(
+            id=10,
+            session_id=1,
+            machine_id=5,
+            weight=80.0,
+            reps=8,
+            failure=False,
+            created_at=now,
+            updated_at=now,
+        )
+        mock_set_entry_repository.get_last_set_for_machine.return_value = last_set
+
+        result = await workout_use_case.get_last_set_for_machine(user_id=123456789, machine_id=5)
+
+        assert result is not None
+        assert result.machine_id == 5
+        assert result.weight == 80.0
+        mock_set_entry_repository.get_last_set_for_machine.assert_called_once_with(
+            user_id=123456789,
+            machine_id=5,
+        )

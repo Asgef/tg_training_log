@@ -196,7 +196,7 @@ async def process_description(
                 try:
                     await bot.send_message(
                         chat_id=admin_id,
-                        text=f"Новый запрос на регистрацию от @{username} ({first_name} {last_name}, ID: {user_id}).\nОписание: {description}",
+                        text=f"Новый запрос на регистрацию от @{username} ({first_name} {last_name}, ID: {user_id}).\nОписание: {registration_input.description}",
                         reply_markup=admin_keyboard
                     )
                     logger.info(

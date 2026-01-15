@@ -173,3 +173,39 @@ class WorkoutUseCase(IWorkoutUseCase):
                 exc_info=True,
             )
             return None
+
+    async def get_recent_machine_ids(self, user_id: int, limit: int = 5) -> list[int]:
+        try:
+            return await self.set_entry_repository.get_recent_machine_ids(
+                user_id=user_id,
+                limit=limit,
+            )
+        except Exception as e:
+            logger.error(
+                "Ошибка при получении последних тренажёров",
+                user_id=user_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return []
+
+    async def get_last_set_for_machine(
+        self, user_id: int, machine_id: int
+    ) -> Optional[SetEntryDTO]:
+        try:
+            last_set = await self.set_entry_repository.get_last_set_for_machine(
+                user_id=user_id,
+                machine_id=machine_id,
+            )
+            if last_set:
+                return set_entry_to_dto(last_set)
+            return None
+        except Exception as e:
+            logger.error(
+                "Ошибка при получении последнего подхода по тренажёру",
+                user_id=user_id,
+                machine_id=machine_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None

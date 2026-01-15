@@ -42,16 +42,21 @@ class RegistrationCheckMiddleware(BaseMiddleware):
 
         user_id = event.from_user.id
 
-        # Разрешить команду /start и связанные с регистрацией callback/сообщения
-        if isinstance(event, Message) and (
-            event.text == "/start"
-            or data.get("fsm_state") == "RegistrationStates:waiting_for_description"
-        ):
+        # Разрешить команду /start и связанные с регистрацией callback
+        if isinstance(event, Message) and event.text == "/start":
             return await handler(event, data)
         elif isinstance(event, CallbackQuery) and (
             event.data == "register_request" or event.data.startswith("admin_")
         ):
             return await handler(event, data)
+        
+        # Разрешить все сообщения в FSM состоянии регистрации
+        # (handler с декоратором state filter сам проверит состояние)
+        fsm_context = data.get("state")
+        if fsm_context:
+            current_state = await fsm_context.get_state()
+            if current_state and current_state.startswith("RegistrationStates:"):
+                return await handler(event, data)
 
         # Админы могут пропустить проверку
         if user_id in config.admin_ids:

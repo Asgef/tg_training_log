@@ -2,13 +2,17 @@
 import structlog
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from pydantic import ValidationError
 
-from src.application.use_case_interfaces import IWorkoutUseCase
+from src.application.use_case_interfaces import IWorkoutUseCase, IMachineManagementUseCase
 from src.application.dto import SetEntryInputDTO
+from src.infrastructure.web.handlers.workout_keyboards import (
+    build_machine_selection_keyboard,
+    build_set_params_keyboard,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -16,7 +20,44 @@ router = Router()
 
 class WorkoutStates(StatesGroup):
     choosing_machine = State()
-    waiting_for_set_data = State()
+    searching_machine = State()
+    editing_set_params = State()
+    manual_weight_input = State()
+    manual_reps_input = State()
+
+
+RECENT_MACHINES_LIMIT = 5
+DEFAULT_REPS = 8
+DEFAULT_FAILURE = False
+
+
+def _format_weight(weight: float) -> str:
+    if float(weight).is_integer():
+        return str(int(weight))
+    return f"{weight:.2f}".rstrip("0").rstrip(".")
+
+
+def _build_set_params_text(weight: float, reps: int, failure: bool) -> str:
+    lines = [
+        "📝 Укажи параметры подхода:",
+        "🟢 Тренировка активна — подход будет сохранён в текущую сессию.",
+        "",
+        f"💪 Вес: {_format_weight(weight)} кг",
+        f"🔁 Повторы: {reps}",
+        f"⚠️ Отказ: {'Да' if failure else 'Нет'}",
+    ]
+    return "\n".join(lines)
+
+
+def _order_machines(machines, recent_ids: list[int]):
+    machines_by_id = {machine.id: machine for machine in machines}
+    recent = [machines_by_id[mid] for mid in recent_ids if mid in machines_by_id]
+    recent_set = set(recent_ids)
+    others = sorted(
+        [machine for machine in machines if machine.id not in recent_set],
+        key=lambda machine: machine.name.casefold(),
+    )
+    return recent, others
 
 
 @router.message(Command("workout_start"))
@@ -102,9 +143,11 @@ async def cmd_record_set(
     message: Message,
     state: FSMContext,
     workout_use_case: IWorkoutUseCase,
+    machine_management_use_case: IMachineManagementUseCase,
 ) -> None:
     """Обработчик команды /record_set."""
     try:
+        await state.clear()
         user_id = message.from_user.id
         active_session = await workout_use_case.get_active_workout_session(user_id)
         if not active_session:
@@ -116,11 +159,28 @@ async def cmd_record_set(
             await message.answer("Для записи подхода сначала начните тренировку (команда /workout_start).")
             return
 
-        await message.answer("Введите данные подхода в формате: `machine_id вес повторы отказ(0/1)`.\nНапример: `1 100 8 0` (machine_id=1, вес=100кг, 8 повторений, без отказа).")
-        await state.set_state(WorkoutStates.waiting_for_set_data)
+        machines = await machine_management_use_case.get_user_machines(user_id)
+        if not machines:
+            await message.answer(
+                "У вас нет тренажёров. Сначала добавьте тренажёр в меню 'Тренажеры'."
+            )
+            return
+
+        recent_ids = await workout_use_case.get_recent_machine_ids(
+            user_id=user_id,
+            limit=RECENT_MACHINES_LIMIT,
+        )
+        recent, others = _order_machines(machines, recent_ids)
+        keyboard = build_machine_selection_keyboard(recent, others)
+        sent_message = await message.answer("🏋️ Выбери тренажёр:", reply_markup=keyboard)
+        await state.set_state(WorkoutStates.choosing_machine)
+        await state.update_data(
+            machine_select_message_id=sent_message.message_id,
+            recent_ids=recent_ids,
+        )
         logger.info(
-            "Пользователь перешёл в состояние waiting_for_set_data",
-            event_type="set_record_state_entered",
+            "Пользователь перешёл в состояние choosing_machine",
+            event_type="machine_select_state_entered",
             user_id=user_id,
         )
     except Exception as e:
@@ -133,45 +193,284 @@ async def cmd_record_set(
         )
         await message.answer("Произошла ошибка при подготовке к записи подхода.")
 
-@router.message(WorkoutStates.waiting_for_set_data)
-async def process_set_data(
+@router.callback_query(F.data == "machine_search", WorkoutStates.choosing_machine)
+async def handle_machine_search(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Запрашивает ввод части названия тренажёра."""
+    await state.set_state(WorkoutStates.searching_machine)
+    await callback.message.edit_text("Введите часть названия тренажёра:")
+    await callback.answer()
+
+
+@router.message(WorkoutStates.searching_machine)
+async def handle_machine_search_input(
     message: Message,
     state: FSMContext,
     workout_use_case: IWorkoutUseCase,
+    machine_management_use_case: IMachineManagementUseCase,
 ) -> None:
-    """Обработчик ввода данных подхода."""
+    """Обработчик ввода для поиска тренажёра."""
     user_id = message.from_user.id
+    query = message.text.strip().casefold()
+    data = await state.get_data()
+    message_id = data.get("machine_select_message_id")
+
+    machines = await machine_management_use_case.get_user_machines(user_id)
+    recent_ids = data.get("recent_ids") or await workout_use_case.get_recent_machine_ids(
+        user_id=user_id,
+        limit=RECENT_MACHINES_LIMIT,
+    )
+
+    matches = [m for m in machines if query in m.name.casefold()]
+    if matches:
+        recent, others = _order_machines(matches, recent_ids)
+        text = "🏋️ Выбери тренажёр:"
+        keyboard = build_machine_selection_keyboard(recent, others)
+    else:
+        recent, others = _order_machines(machines, recent_ids)
+        text = "Ничего не найдено. Выберите тренажёр из списка:"
+        keyboard = build_machine_selection_keyboard(recent, others)
+
+    if message_id:
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=message_id,
+            text=text,
+            reply_markup=keyboard,
+        )
+    await state.set_state(WorkoutStates.choosing_machine)
+
+
+@router.callback_query(F.data.startswith("machine_select:"), WorkoutStates.choosing_machine)
+async def handle_machine_select(
+    callback: CallbackQuery,
+    state: FSMContext,
+    workout_use_case: IWorkoutUseCase,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
+    """Обработчик выбора тренажёра."""
     try:
-        parts = message.text.split()
-        if len(parts) != 4:
-            raise ValueError("Неверный формат. Пожалуйста, используйте: `machine_id вес повторы отказ(0/1)`")
+        machine_id = int(callback.data.split(":")[-1])
+    except ValueError:
+        await callback.answer("Некорректный тренажёр.", show_alert=True)
+        return
 
-        machine_id = int(parts[0])
-        weight = float(parts[1])
-        reps = int(parts[2])
-        failure = bool(int(parts[3]))
+    user_id = callback.from_user.id
+    machine = await machine_management_use_case.get_machine_details(user_id, machine_id)
+    if not machine:
+        await callback.answer("Тренажёр не найден.", show_alert=True)
+        return
 
-        # Валидация через Pydantic DTO
-        try:
-            set_input = SetEntryInputDTO(
-                machine_id=machine_id,
-                weight=weight,
-                reps=reps,
-                failure=failure,
-            )
-        except ValidationError as e:
-            error_messages = "; ".join([err["msg"] for err in e.errors()])
-            logger.warning(
-                "Пользователь предоставил невалидные данные подхода",
-                event_type="set_record_validation_error",
-                user_id=user_id,
-                input_text=message.text,
-                errors=error_messages,
-            )
-            await message.answer(f"Ошибка валидации: {error_messages}. Попробуйте еще раз.")
-            await state.clear()
-            return
+    last_set = await workout_use_case.get_last_set_for_machine(user_id, machine_id)
+    if last_set:
+        weight = float(last_set.weight)
+        reps = last_set.reps
+        failure = last_set.failure
+    else:
+        weight = 0.0
+        reps = DEFAULT_REPS
+        failure = DEFAULT_FAILURE
 
+    await state.set_state(WorkoutStates.editing_set_params)
+    await state.update_data(
+        machine_id=machine_id,
+        machine_name=machine.name,
+        weight=weight,
+        reps=reps,
+        failure=failure,
+        default_weight=weight,
+        default_reps=reps,
+        default_failure=failure,
+        form_message_id=callback.message.message_id,
+    )
+
+    await callback.message.edit_text(
+        _build_set_params_text(weight, reps, failure),
+        reply_markup=build_set_params_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("set_weight:"), WorkoutStates.editing_set_params)
+async def handle_weight_change(callback: CallbackQuery, state: FSMContext) -> None:
+    """Изменяет вес по кнопкам."""
+    data = await state.get_data()
+    current_weight = float(data.get("weight", 0.0))
+    try:
+        delta = float(callback.data.split(":")[-1])
+    except ValueError:
+        await callback.answer("Некорректное значение веса.", show_alert=True)
+        return
+
+    new_weight = max(0.0, round(current_weight + delta, 2))
+    await state.update_data(weight=new_weight)
+    await callback.message.edit_text(
+        _build_set_params_text(new_weight, data.get("reps", DEFAULT_REPS), data.get("failure", False)),
+        reply_markup=build_set_params_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "set_manual_weight", WorkoutStates.editing_set_params)
+async def handle_manual_weight_request(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запрашивает ручной ввод веса."""
+    await state.set_state(WorkoutStates.manual_weight_input)
+    await callback.message.answer("Введите вес одним числом (например, 80.5).")
+    await callback.answer()
+
+
+@router.message(WorkoutStates.manual_weight_input)
+async def handle_manual_weight_input(message: Message, state: FSMContext) -> None:
+    """Обрабатывает ручной ввод веса."""
+    data = await state.get_data()
+    raw = message.text.replace(",", ".").strip()
+    try:
+        weight = float(raw)
+        if weight <= 0:
+            raise ValueError("Вес должен быть больше 0")
+    except ValueError:
+        await message.answer("Введите корректный вес больше 0.")
+        return
+
+    await state.update_data(weight=weight)
+    await state.set_state(WorkoutStates.editing_set_params)
+    message_id = data.get("form_message_id")
+    if message_id:
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=message_id,
+            text=_build_set_params_text(weight, data.get("reps", DEFAULT_REPS), data.get("failure", False)),
+            reply_markup=build_set_params_keyboard(),
+        )
+
+
+@router.callback_query(F.data.startswith("set_reps:"), WorkoutStates.editing_set_params)
+async def handle_reps_change(callback: CallbackQuery, state: FSMContext) -> None:
+    """Изменяет количество повторений по кнопкам."""
+    data = await state.get_data()
+    try:
+        reps_value = callback.data.split(":")[-1]
+        if reps_value.startswith(("+", "-")):
+            delta = int(reps_value)
+            current_reps = int(data.get("reps", DEFAULT_REPS))
+            reps = max(1, current_reps + delta)
+        else:
+            reps = int(reps_value)
+    except ValueError:
+        await callback.answer("Некорректное число повторений.", show_alert=True)
+        return
+
+    await state.update_data(reps=reps)
+    await callback.message.edit_text(
+        _build_set_params_text(data.get("weight", 0.0), reps, data.get("failure", False)),
+        reply_markup=build_set_params_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "set_manual_reps", WorkoutStates.editing_set_params)
+async def handle_manual_reps_request(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запрашивает ручной ввод повторений."""
+    await state.set_state(WorkoutStates.manual_reps_input)
+    await callback.message.answer("Введите количество повторений целым числом (например, 8).")
+    await callback.answer()
+
+
+@router.message(WorkoutStates.manual_reps_input)
+async def handle_manual_reps_input(message: Message, state: FSMContext) -> None:
+    """Обрабатывает ручной ввод повторений."""
+    data = await state.get_data()
+    try:
+        reps = int(message.text.strip())
+        if reps <= 0:
+            raise ValueError("Повторы должны быть больше 0")
+    except ValueError:
+        await message.answer("Введите корректное число повторений больше 0.")
+        return
+
+    await state.update_data(reps=reps)
+    await state.set_state(WorkoutStates.editing_set_params)
+    message_id = data.get("form_message_id")
+    if message_id:
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=message_id,
+            text=_build_set_params_text(data.get("weight", 0.0), reps, data.get("failure", False)),
+            reply_markup=build_set_params_keyboard(),
+        )
+
+
+@router.callback_query(F.data.startswith("set_failure:"), WorkoutStates.editing_set_params)
+async def handle_failure_change(callback: CallbackQuery, state: FSMContext) -> None:
+    """Изменяет статус отказа."""
+    data = await state.get_data()
+    try:
+        failure_value = int(callback.data.split(":")[-1])
+    except ValueError:
+        await callback.answer("Некорректное значение отказа.", show_alert=True)
+        return
+
+    failure = bool(failure_value)
+    await state.update_data(failure=failure)
+    await callback.message.edit_text(
+        _build_set_params_text(data.get("weight", 0.0), data.get("reps", DEFAULT_REPS), failure),
+        reply_markup=build_set_params_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "set_reset", WorkoutStates.editing_set_params)
+async def handle_set_reset(callback: CallbackQuery, state: FSMContext) -> None:
+    """Сбрасывает параметры к значениям по умолчанию."""
+    data = await state.get_data()
+    weight = float(data.get("default_weight", 0.0))
+    reps = int(data.get("default_reps", DEFAULT_REPS))
+    failure = bool(data.get("default_failure", DEFAULT_FAILURE))
+    await state.update_data(weight=weight, reps=reps, failure=failure)
+    await callback.message.edit_text(
+        _build_set_params_text(weight, reps, failure),
+        reply_markup=build_set_params_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "set_cancel", WorkoutStates.editing_set_params)
+async def handle_set_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    """Отменяет ввод подхода."""
+    await state.clear()
+    await callback.message.edit_text("Ввод подхода отменён.")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "set_save", WorkoutStates.editing_set_params)
+async def handle_set_save(
+    callback: CallbackQuery,
+    state: FSMContext,
+    workout_use_case: IWorkoutUseCase,
+) -> None:
+    """Сохраняет подход."""
+    user_id = callback.from_user.id
+    data = await state.get_data()
+    machine_id = data.get("machine_id")
+    weight = float(data.get("weight", 0.0))
+    reps = int(data.get("reps", 0))
+    failure = bool(data.get("failure", False))
+
+    try:
+        set_input = SetEntryInputDTO(
+            machine_id=machine_id,
+            weight=weight,
+            reps=reps,
+            failure=failure,
+        )
+    except ValidationError as e:
+        error_messages = "; ".join([err["msg"] for err in e.errors()])
+        await callback.answer(f"Ошибка: {error_messages}", show_alert=True)
+        return
+
+    try:
         set_entry = await workout_use_case.record_set(
             user_id,
             set_input.machine_id,
@@ -179,50 +478,20 @@ async def process_set_data(
             set_input.reps,
             set_input.failure,
         )
-        if set_entry:
-            logger.info(
-                "Пользователь успешно записал подход",
-                event_type="set_recorded",
-                user_id=user_id,
-                set_entry_id=set_entry.id,
-                machine_id=set_input.machine_id,
-                weight=set_input.weight,
-                reps=set_input.reps,
-                failure=set_input.failure,
-            )
-            await message.answer(f"Подход записан: {set_input.weight}кг x {set_input.reps} на тренажере {set_input.machine_id}.")
-        else:
-            logger.warning(
-                "Пользователь не смог записать подход",
-                event_type="set_record_failed",
-                user_id=user_id,
-                machine_id=set_input.machine_id,
-                weight=set_input.weight,
-                reps=set_input.reps,
-                failure=set_input.failure,
-            )
-            await message.answer("Не удалось записать подход. Убедитесь, что у вас активна тренировка и данные верны.")
     except ValueError as e:
-        logger.warning(
-            "Пользователь предоставил неверный формат данных подхода",
-            event_type="set_record_validation_error",
-            user_id=user_id,
-            input_text=message.text,
-            error=str(e),
-        )
-        await message.answer(f"Ошибка в формате данных: {e}. Попробуйте еще раз.")
-    except Exception as e:
-        logger.error(
-            "Неожиданная ошибка в process_set_data",
-            event_type="set_record_error",
-            user_id=user_id,
-            input_text=message.text,
-            error=str(e),
-            exc_info=True,
-        )
-        await message.answer(f"Произошла ошибка при записи подхода: {e}")
-    finally:
-        await state.clear()
+        await callback.answer(str(e), show_alert=True)
+        return
+
+    if not set_entry:
+        await callback.answer("Не удалось записать подход. Проверьте тренировку.", show_alert=True)
+        return
+
+    machine_name = data.get("machine_name") or f"ID {set_input.machine_id}"
+    await state.clear()
+    await callback.message.edit_text(
+        f"✅ Подход записан: {machine_name} — {_format_weight(set_input.weight)} кг × {set_input.reps}, отказ: {'Да' if set_input.failure else 'Нет'}."
+    )
+    await callback.answer()
 
 
 # Обработчики кнопок меню
@@ -288,6 +557,7 @@ async def handle_record_set_button(
     message: Message,
     state: FSMContext,
     workout_use_case: IWorkoutUseCase,
+    machine_management_use_case: IMachineManagementUseCase,
 ) -> None:
     """Обработчик кнопки 'Записать подход'."""
-    await cmd_record_set(message, state, workout_use_case)
+    await cmd_record_set(message, state, workout_use_case, machine_management_use_case)

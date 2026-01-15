@@ -96,6 +96,18 @@ class ISetEntryRepository(BaseRepository):
     async def add_set_entry(self, set_entry: "SetEntry") -> "SetEntry":
         pass
 
+    @abstractmethod
+    async def get_recent_machine_ids(self, user_id: int, limit: int = 5) -> List[int]:
+        """Возвращает последние использованные тренажёры пользователя."""
+        pass
+
+    @abstractmethod
+    async def get_last_set_for_machine(
+        self, user_id: int, machine_id: int
+    ) -> Optional["SetEntry"]:
+        """Возвращает последний подход пользователя по тренажёру."""
+        pass
+
 
 class IMuscleRepository(BaseRepository):
     @abstractmethod

@@ -71,6 +71,18 @@ class IWorkoutUseCase(ABC):
         """Получает активную тренировку пользователя."""
         pass
 
+    @abstractmethod
+    async def get_recent_machine_ids(self, user_id: int, limit: int = 5) -> List[int]:
+        """Получает последние использованные тренажёры пользователя."""
+        pass
+
+    @abstractmethod
+    async def get_last_set_for_machine(
+        self, user_id: int, machine_id: int
+    ) -> Optional[SetEntryDTO]:
+        """Получает последний подход пользователя по тренажёру."""
+        pass
+
 
 class IMachineManagementUseCase(ABC):
     @abstractmethod
