@@ -197,6 +197,7 @@ def test_user_data(test_user_id: int) -> dict:
     """Возвращает данные для создания тестового пользователя."""
     return {
         "id": test_user_id,
+        "telegram_id": test_user_id,
         "telegram_username": fake.user_name(),
         "telegram_firstname": fake.first_name(),
         "telegram_lastname": fake.last_name(),

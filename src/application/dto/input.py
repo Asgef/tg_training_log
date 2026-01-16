@@ -36,6 +36,7 @@ class MachineInputDTO(BaseModel):
 
     name: str = Field(..., min_length=1, description="Название тренажёра")
     photo_file_id: Optional[str] = Field(None, description="Telegram file_id фото")
+    zone_ids: list[int] = Field(default_factory=list, description="Список ID зон")
     muscle_ids: list[int] = Field(default_factory=list, description="Список ID мышц")
 
     @field_validator("name")
@@ -52,6 +53,7 @@ class MachineUpdateInputDTO(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, description="Название тренажёра")
     photo_file_id: Optional[str] = Field(None, description="Telegram file_id фото")
+    zone_ids: Optional[list[int]] = Field(None, description="Список ID зон")
     muscle_ids: Optional[list[int]] = Field(None, description="Список ID мышц")
     is_archived: Optional[bool] = Field(None, description="Статус архивации")
 

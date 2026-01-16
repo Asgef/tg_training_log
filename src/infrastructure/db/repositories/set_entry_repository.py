@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.application.repositories import ISetEntryRepository
-from src.domain.models import SetEntry, WorkoutSession
+from src.domain.models import SetEntry, WorkoutSession, SetEntryZone, SetEntryMuscle
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,43 @@ class SetEntryRepository(ISetEntryRepository):
         # Этот метод избыточен с add(), но требуется интерфейсом
         return await self.add(set_entry)
 
+    async def add_set_entry_snapshots(
+        self, set_entry_id: int, zone_ids: list[int], muscle_ids: list[int]
+    ) -> None:
+        """Создаёт snapshot зон и мышц для подхода."""
+        try:
+            zone_rows = [
+                SetEntryZone(set_entry_id=set_entry_id, zone_id=zone_id)
+                for zone_id in zone_ids
+            ]
+            muscle_rows = [
+                SetEntryMuscle(set_entry_id=set_entry_id, muscle_id=muscle_id)
+                for muscle_id in muscle_ids
+            ]
+            if zone_rows:
+                self.session.add_all(zone_rows)
+            if muscle_rows:
+                self.session.add_all(muscle_rows)
+            await self.session.flush()
+            logger.info(
+                "Созданы snapshot-записи для подхода %s: зоны=%s, мышцы=%s.",
+                set_entry_id,
+                zone_ids,
+                muscle_ids,
+            )
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError при создании snapshot для подхода {set_entry_id}: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при создании snapshot для подхода {set_entry_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
     async def get_recent_machine_ids(self, user_id: int, limit: int = 5) -> list[int]:
         """Возвращает список последних использованных тренажёров пользователя."""
         try:
@@ -190,6 +227,17 @@ class SetEntryRepository(ISetEntryRepository):
         """Удаляет все подходы по ID тренировки."""
         try:
             result = await self.session.execute(
+                select(SetEntry.id).where(SetEntry.session_id == session_id)
+            )
+            set_entry_ids = [row[0] for row in result.all()]
+            if set_entry_ids:
+                await self.session.execute(
+                    delete(SetEntryZone).where(SetEntryZone.set_entry_id.in_(set_entry_ids))
+                )
+                await self.session.execute(
+                    delete(SetEntryMuscle).where(SetEntryMuscle.set_entry_id.in_(set_entry_ids))
+                )
+            result = await self.session.execute(
                 delete(SetEntry).where(SetEntry.session_id == session_id)
             )
             deleted = result.rowcount or 0
@@ -204,12 +252,6 @@ class SetEntryRepository(ISetEntryRepository):
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка при удалении подходов для тренировки {session_id}: {e}",
-                exc_info=True,
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"Неожиданная ошибка при получении последнего подхода для пользователя {user_id}, тренажёр {machine_id}: {e}",
                 exc_info=True,
             )
             raise

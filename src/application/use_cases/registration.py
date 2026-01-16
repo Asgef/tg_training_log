@@ -31,6 +31,7 @@ class RegistrationUseCase(IRegistrationUseCase):
 
             new_user = User(
                 id=telegram_id,
+                telegram_id=telegram_id,
                 telegram_username=username,
                 telegram_firstname=first_name,
                 telegram_lastname=last_name,

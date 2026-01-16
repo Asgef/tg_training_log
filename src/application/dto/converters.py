@@ -4,12 +4,12 @@ from src.domain.models import (
     User,
     Machine,
     Muscle,
-    MuscleGroup,
+    MuscleZone,
     WorkoutSession,
     SetEntry,
 )
 from .user import UserDTO
-from .machine import MachineDTO, MuscleDTO, MuscleGroupDTO
+from .machine import MachineDTO, MuscleDTO, MuscleZoneDTO
 from .workout import WorkoutSessionDTO
 from .set_entry import SetEntryDTO
 
@@ -18,6 +18,7 @@ def user_to_dto(user: User) -> UserDTO:
     """Конвертирует domain модель User в UserDTO."""
     return UserDTO(
         id=user.id,
+        telegram_id=user.telegram_id,
         is_registered=user.is_registered,
         google_sheet_url=user.google_sheet_url,
         spreadsheet_id=user.spreadsheet_id,
@@ -38,6 +39,7 @@ def user_from_dto(dto: UserDTO) -> User:
     """
     user = User()
     user.id = dto.id
+    user.telegram_id = dto.telegram_id if dto.telegram_id is not None else dto.id
     user.is_registered = dto.is_registered
     user.google_sheet_url = dto.google_sheet_url
     user.spreadsheet_id = dto.spreadsheet_id
@@ -50,27 +52,23 @@ def user_from_dto(dto: UserDTO) -> User:
     return user
 
 
-def muscle_group_to_dto(muscle_group: MuscleGroup) -> MuscleGroupDTO:
-    """Конвертирует domain модель MuscleGroup в MuscleGroupDTO."""
-    return MuscleGroupDTO(
-        id=muscle_group.id,
-        name=muscle_group.name,
-        created_at=muscle_group.created_at,
-        updated_at=muscle_group.updated_at,
+def muscle_zone_to_dto(muscle_zone: MuscleZone) -> MuscleZoneDTO:
+    """Конвертирует domain модель MuscleZone в MuscleZoneDTO."""
+    return MuscleZoneDTO(
+        id=muscle_zone.id,
+        name=muscle_zone.name,
+        created_at=muscle_zone.created_at,
+        updated_at=muscle_zone.updated_at,
     )
 
 
 def muscle_to_dto(muscle: Muscle) -> MuscleDTO:
     """Конвертирует domain модель Muscle в MuscleDTO."""
-    group_dto = None
-    if muscle.group:
-        group_dto = muscle_group_to_dto(muscle.group)
-    
+    zones_dto = [muscle_zone_to_dto(zone) for zone in muscle.zones] if muscle.zones else []
     return MuscleDTO(
         id=muscle.id,
         name=muscle.name,
-        group_id=muscle.group_id,
-        group=group_dto,
+        zones=zones_dto,
         created_at=muscle.created_at,
         updated_at=muscle.updated_at,
     )
@@ -79,6 +77,7 @@ def muscle_to_dto(muscle: Muscle) -> MuscleDTO:
 def machine_to_dto(machine: Machine) -> MachineDTO:
     """Конвертирует domain модель Machine в MachineDTO."""
     muscles_dto = [muscle_to_dto(muscle) for muscle in machine.muscles]
+    zones_dto = [muscle_zone_to_dto(zone) for zone in machine.zones]
     
     return MachineDTO(
         id=machine.id,
@@ -86,6 +85,7 @@ def machine_to_dto(machine: Machine) -> MachineDTO:
         name=machine.name,
         photo_file_id=machine.photo_file_id,
         is_archived=machine.is_archived,
+        zones=zones_dto,
         muscles=muscles_dto,
         created_at=machine.created_at,
         updated_at=machine.updated_at,
@@ -146,7 +146,7 @@ def set_entry_to_dto(set_entry: SetEntry) -> SetEntryDTO:
         machine_id=set_entry.machine_id,
         weight=float(set_entry.weight),
         reps=set_entry.reps,
-        failure=set_entry.failure,
+        is_failure=set_entry.is_failure,
         created_at=set_entry.created_at,
         updated_at=set_entry.updated_at,
     )
@@ -164,7 +164,7 @@ def set_entry_from_dto(dto: SetEntryDTO) -> SetEntry:
     set_entry.machine_id = dto.machine_id
     set_entry.weight = dto.weight
     set_entry.reps = dto.reps
-    set_entry.failure = dto.failure
+    set_entry.is_failure = dto.is_failure
     set_entry.created_at = dto.created_at
     set_entry.updated_at = dto.updated_at
     return set_entry

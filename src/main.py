@@ -1,4 +1,5 @@
 import asyncio
+import os
 import signal
 from typing import Optional, Any
 
@@ -8,6 +9,8 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
+from alembic import command
+from alembic.config import Config as AlembicConfig
 
 # Импорт модулей проекта
 from src.configs.logging_config import setup_logging
@@ -31,6 +34,21 @@ _bot_instance: Optional[Bot] = None
 _dispatcher_instance: Optional[Dispatcher] = None
 _container_instance: Optional[Container] = None
 _storage_instance: Optional[MemoryStorage] = None
+
+
+def _run_migrations_sync(database_url: str) -> None:
+    """Запускает Alembic upgrade до head."""
+    alembic_ini = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    alembic_cfg = AlembicConfig(alembic_ini)
+    alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(alembic_cfg, "head")
+
+
+async def run_migrations(database_url: str) -> None:
+    """Запускает миграции в отдельном потоке, чтобы не блокировать loop."""
+    logger.info("Запуск Alembic миграций...")
+    await asyncio.to_thread(_run_migrations_sync, database_url)
+    logger.info("Alembic миграции завершены")
 
 
 async def graceful_shutdown() -> None:
@@ -125,6 +143,13 @@ async def main() -> None:
     
     # Настройка обработчиков сигналов
     setup_signal_handlers()
+
+    # Прогон миграций до запуска бота
+    try:
+        await run_migrations(config.database_url)
+    except Exception as e:
+        logger.exception(f"Ошибка при запуске миграций: {e}")
+        raise
     
     # Инициализация контейнера зависимостей
     container = Container()

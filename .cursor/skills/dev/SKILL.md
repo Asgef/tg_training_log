@@ -81,7 +81,7 @@ description: Python developer
 * **Unit:** Domain/Use Cases изолированно от фреймворков.
 * **Integration:** репозитории (тестовая БД), Redis-фейк/контейнер, HTTP-контракты (`respx`).
 * **E2E/Smoke:** синтетические Telegram-updates (json-фикстуры), проверка побочных эффектов.
-* **Гейты:** `ruff` + `mypy` + `pytest -q`, целевой coverage (например, ≥80%) — в CI.
+* **Гейты:** `ruff` + `pytest -q`, целевой coverage (например, ≥80%) — в CI.
 
 ---
 

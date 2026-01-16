@@ -8,7 +8,7 @@ from src.application.dto import (
     WorkoutSessionDTO,
     SetEntryDTO,
     MuscleDTO,
-    MuscleGroupDTO,
+    MuscleZoneDTO,
 )
 
 
@@ -101,6 +101,7 @@ class IMachineManagementUseCase(ABC):
         user_id: int,
         name: str,
         photo_file_id: Optional[str],
+        zone_ids: List[int],
         muscle_ids: List[int],
     ) -> MachineDTO:
         """Добавляет новый тренажёр в личный список пользователя."""
@@ -125,6 +126,7 @@ class IMachineManagementUseCase(ABC):
         machine_id: int,
         name: Optional[str],
         photo_file_id: Optional[str],
+        zone_ids: Optional[List[int]],
         muscle_ids: Optional[List[int]],
         is_archived: Optional[bool],
     ) -> Optional[MachineDTO]:
@@ -142,18 +144,23 @@ class IMachineManagementUseCase(ABC):
         pass
 
     @abstractmethod
-    async def get_all_muscle_groups(self) -> List[MuscleGroupDTO]:
-        """Получает все группы мышц."""
+    async def get_all_muscle_zones(self) -> List[MuscleZoneDTO]:
+        """Получает все мышечные зоны."""
         pass
 
     @abstractmethod
-    async def get_muscles_by_group_id(self, group_id: int) -> List[MuscleDTO]:
-        """Получает мышцы по ID группы."""
+    async def get_muscles_by_zone_id(self, zone_id: int) -> List[MuscleDTO]:
+        """Получает мышцы по ID зоны."""
         pass
 
     @abstractmethod
-    async def get_muscle_group_by_id(self, group_id: int) -> Optional[MuscleGroupDTO]:
-        """Получает группу мышц по ID."""
+    async def get_muscle_zone_by_id(self, zone_id: int) -> Optional[MuscleZoneDTO]:
+        """Получает мышечную зону по ID."""
+        pass
+
+    @abstractmethod
+    async def get_muscle_zones_by_ids(self, zone_ids: List[int]) -> List[MuscleZoneDTO]:
+        """Получает зоны по списку ID."""
         pass
 
     @abstractmethod

@@ -1,23 +1,23 @@
-"""DTO для тренажёров и мышц."""
+"""DTO для тренажёров, зон и мышц."""
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 
-class MuscleGroupDTO(BaseModel):
-    """Data Transfer Object для группы мышц."""
+class MuscleZoneDTO(BaseModel):
+    """Data Transfer Object для мышечной зоны."""
 
-    id: int = Field(..., description="ID группы мышц")
-    name: str = Field(..., description="Название группы мышц")
+    id: int = Field(..., description="ID зоны")
+    name: str = Field(..., description="Название зоны")
     created_at: datetime = Field(..., description="Дата создания")
     updated_at: datetime = Field(..., description="Дата обновления")
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """Валидация названия группы мышц."""
+        """Валидация названия зоны."""
         if not v or not v.strip():
-            raise ValueError("Название группы мышц не может быть пустым")
+            raise ValueError("Название зоны не может быть пустым")
         return v.strip()
 
     class Config:
@@ -34,8 +34,7 @@ class MuscleDTO(BaseModel):
 
     id: int = Field(..., description="ID мышцы")
     name: str = Field(..., description="Название мышцы")
-    group_id: int = Field(..., description="ID группы мышц")
-    group: Optional[MuscleGroupDTO] = Field(None, description="Группа мышц")
+    zones: List[MuscleZoneDTO] = Field(default_factory=list, description="Зоны мышцы")
     created_at: datetime = Field(..., description="Дата создания")
     updated_at: datetime = Field(..., description="Дата обновления")
 
@@ -64,6 +63,7 @@ class MachineDTO(BaseModel):
     name: str = Field(..., description="Название тренажёра")
     photo_file_id: Optional[str] = Field(None, description="Telegram file_id фото")
     is_archived: bool = Field(default=False, description="Статус архивации")
+    zones: List[MuscleZoneDTO] = Field(default_factory=list, description="Список зон")
     muscles: List[MuscleDTO] = Field(default_factory=list, description="Список мышц")
     created_at: datetime = Field(..., description="Дата создания")
     updated_at: datetime = Field(..., description="Дата обновления")

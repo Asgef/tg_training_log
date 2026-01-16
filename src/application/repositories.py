@@ -8,7 +8,7 @@ from src.domain.models import (
     WorkoutSession,
     SetEntry,
     Muscle,
-    MuscleGroup,
+    MuscleZone,
     ProcessedUpdate,
 )
 
@@ -63,14 +63,20 @@ class IMachineRepository(BaseRepository):
         pass
 
     @abstractmethod
-    async def add_machine_with_muscles(
-        self, machine: "Machine", muscle_ids: List[int]
+    async def add_machine_with_tags(
+        self, machine: "Machine", zone_ids: List[int], muscle_ids: List[int]
     ) -> "Machine":
         pass
 
     @abstractmethod
     async def update_machine_muscles(
         self, machine_id: int, muscle_ids: List[int]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def update_machine_zones(
+        self, machine_id: int, zone_ids: List[int]
     ) -> None:
         pass
 
@@ -94,6 +100,13 @@ class IWorkoutSessionRepository(BaseRepository):
 class ISetEntryRepository(BaseRepository):
     @abstractmethod
     async def add_set_entry(self, set_entry: "SetEntry") -> "SetEntry":
+        pass
+
+    @abstractmethod
+    async def add_set_entry_snapshots(
+        self, set_entry_id: int, zone_ids: List[int], muscle_ids: List[int]
+    ) -> None:
+        """Добавляет snapshot зон и мышц для подхода."""
         pass
 
     @abstractmethod
@@ -129,17 +142,21 @@ class IMuscleRepository(BaseRepository):
         pass
 
     @abstractmethod
-    async def get_muscles_by_group_id(self, group_id: int) -> List["Muscle"]:
+    async def get_muscles_by_zone_id(self, zone_id: int) -> List["Muscle"]:
         pass
 
 
-class IMuscleGroupRepository(BaseRepository):
+class IMuscleZoneRepository(BaseRepository):
     @abstractmethod
-    async def get_all_muscle_groups(self) -> List["MuscleGroup"]:
+    async def get_all_muscle_zones(self) -> List["MuscleZone"]:
         pass
 
     @abstractmethod
-    async def get_muscle_group_by_id(self, group_id: int) -> Optional["MuscleGroup"]:
+    async def get_muscle_zone_by_id(self, zone_id: int) -> Optional["MuscleZone"]:
+        pass
+
+    @abstractmethod
+    async def get_muscle_zones_by_ids(self, zone_ids: List[int]) -> List["MuscleZone"]:
         pass
 
 

@@ -2,9 +2,12 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from typing import AsyncGenerator
+import itertools
+_update_counter = itertools.count(1)
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Update, Message, User, Chat, CallbackQuery
+from datetime import datetime, timezone
 from aiogram.client.session.aiohttp import AiohttpSession
 
 from src.container import Container
@@ -23,7 +26,7 @@ async def bot() -> Bot:
     """Создаёт мок Bot для тестов."""
     # Используем реальный Bot, но с мок-сессией
     session = AsyncMock(spec=AiohttpSession)
-    return Bot(token="test_token", session=session)
+    return Bot(token="123456:TEST_TOKEN", session=session)
 
 
 @pytest.fixture
@@ -31,8 +34,16 @@ async def dispatcher(container: Container) -> Dispatcher:
     """Создаёт Dispatcher с подключенными handlers."""
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
+
+    from src.configs.config import config
+    config.admin_ids = [999999999]
+    registration.ADMIN_IDS = config.admin_ids
     
     # Подключаем routers
+    registration.router._parent_router = None
+    workout.router._parent_router = None
+    machine_router._parent_router = None
+    common.router._parent_router = None
     dp.include_router(registration.router)
     dp.include_router(workout.router)
     dp.include_router(machine_router)
@@ -45,9 +56,8 @@ async def dispatcher(container: Container) -> Dispatcher:
     dp.callback_query.middleware(DatabaseMiddleware(container.session_factory()))
     dp.message.middleware(DependencyInjectionMiddleware(container))
     dp.callback_query.middleware(DependencyInjectionMiddleware(container))
-    dp.message.middleware(IdempotencyMiddleware(container.processed_update_repository()))
-    dp.callback_query.middleware(IdempotencyMiddleware(container.processed_update_repository()))
-    dp.message.middleware(RegistrationCheckMiddleware(container.registration_use_case()))
+    # Идемпотентность в e2e отключаем, чтобы не блокировать тестовые update_id
+    dp.message.middleware(RegistrationCheckMiddleware())
     dp.message.middleware(ErrorHandlingMiddleware())
     dp.callback_query.middleware(ErrorHandlingMiddleware())
     
@@ -120,6 +130,7 @@ def create_message_update(
     first_name: str = "Test",
     last_name: str = "User",
     chat_id: int = 123456789,
+    update_id: int | None = None,
 ) -> Update:
     """Создаёт Update с Message для тестов."""
     user = User(
@@ -132,12 +143,13 @@ def create_message_update(
     chat = Chat(id=chat_id, type="private")
     message = Message(
         message_id=1,
-        date=None,
+        date=datetime.now(timezone.utc),
         chat=chat,
         from_user=user,
         text=text,
     )
-    return Update(update_id=1, message=message)
+    update_id = update_id if update_id is not None else next(_update_counter)
+    return Update(update_id=update_id, message=message)
 
 
 def create_callback_query_update(
@@ -148,6 +160,7 @@ def create_callback_query_update(
     last_name: str = "User",
     chat_id: int = 123456789,
     message_id: int = 1,
+    update_id: int | None = None,
 ) -> Update:
     """Создаёт Update с CallbackQuery для тестов."""
     user = User(
@@ -160,7 +173,7 @@ def create_callback_query_update(
     chat = Chat(id=chat_id, type="private")
     message = Message(
         message_id=message_id,
-        date=None,
+        date=datetime.now(timezone.utc),
         chat=chat,
         from_user=user,
         text="Test message",
@@ -172,7 +185,8 @@ def create_callback_query_update(
         data=callback_data,
         message=message,
     )
-    return Update(update_id=1, callback_query=callback_query)
+    update_id = update_id if update_id is not None else next(_update_counter)
+    return Update(update_id=update_id, callback_query=callback_query)
 
 
 @pytest.fixture

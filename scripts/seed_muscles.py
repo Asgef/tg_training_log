@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 
+from sqlalchemy import select
+
 # Добавляем корневую директорию проекта в путь
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -15,7 +17,7 @@ sys.path.insert(0, str(project_root))
 from src.configs.logging_config import setup_logging
 from src.infrastructure.db.base import get_session
 from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
-from src.domain.models import MuscleGroup, Muscle
+from src.domain.models import MuscleZone, Muscle, MuscleZoneMuscle
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -53,59 +55,78 @@ def parse_muscles_file(file_path: Path) -> Dict[str, List[str]]:
 
 
 async def seed_muscles() -> None:
-    """Заполняет базу данных мышцами и группами мышц"""
+    """Заполняет базу данных мышцами и зонами"""
     muscles_file = project_root / "muscles.md"
     
     if not muscles_file.exists():
         logger.error(f"Файл {muscles_file} не найден!")
         return
     
-    groups_muscles = parse_muscles_file(muscles_file)
-    total_muscles = sum(len(muscles) for muscles in groups_muscles.values())
-    logger.info(f"Найдено {len(groups_muscles)} групп мышц, всего {total_muscles} мышц")
+    zones_muscles = parse_muscles_file(muscles_file)
+    total_muscles = sum(len(muscles) for muscles in zones_muscles.values())
+    logger.info(f"Найдено {len(zones_muscles)} зон, всего {total_muscles} мышц")
     
     async with get_session() as session:
         muscle_repo = MuscleRepository(session)
         
-        # Создаем группы мышц
-        group_id_map: Dict[str, int] = {}  # Храним только ID, чтобы избежать проблем с async
+        # Создаем зоны
+        zone_id_map: Dict[str, int] = {}  # Храним только ID, чтобы избежать проблем с async
         
-        for group_name in groups_muscles.keys():
-            # Проверяем, существует ли уже группа
-            existing_groups = await muscle_repo.get_all_muscle_groups()
-            existing_group = next(
-                (g for g in existing_groups if g.name == group_name),
+        for zone_name in zones_muscles.keys():
+            # Проверяем, существует ли уже зона
+            existing_zones = await muscle_repo.get_all_muscle_zones()
+            existing_zone = next(
+                (z for z in existing_zones if z.name == zone_name),
                 None
             )
             
-            if existing_group:
+            if existing_zone:
                 # Сохраняем ID сразу, пока объект в сессии
-                group_id = existing_group.id
-                logger.info(f"Группа мышц '{group_name}' уже существует (ID: {group_id})")
-                group_id_map[group_name] = group_id
+                zone_id = existing_zone.id
+                logger.info(f"Зона '{zone_name}' уже существует (ID: {zone_id})")
+                zone_id_map[zone_name] = zone_id
             else:
-                new_group = MuscleGroup(name=group_name)
-                created_group = await muscle_repo.add_muscle_group(new_group)
-                group_id = created_group.id  # Сохраняем ID сразу
-                logger.info(f"Создана группа мышц '{group_name}' (ID: {group_id})")
-                group_id_map[group_name] = group_id
+                new_zone = MuscleZone(name=zone_name)
+                created_zone = await muscle_repo.add_muscle_zone(new_zone)
+                zone_id = created_zone.id  # Сохраняем ID сразу
+                logger.info(f"Создана зона '{zone_name}' (ID: {zone_id})")
+                zone_id_map[zone_name] = zone_id
         
-        # Создаем мышцы
+        # Создаем мышцы и связи с зонами
         all_muscles = await muscle_repo.get_all_muscles()
         existing_muscle_names = {m.name for m in all_muscles}
         
-        for group_name, muscle_names in groups_muscles.items():
-            group_id = group_id_map[group_name]  # Используем сохраненный ID
+        for zone_name, muscle_names in zones_muscles.items():
+            zone_id = zone_id_map[zone_name]  # Используем сохраненный ID
             
             for muscle_name in muscle_names:
                 if muscle_name in existing_muscle_names:
                     logger.debug(f"Мышца '{muscle_name}' уже существует, пропускаем")
+                    # Связь с зоной может отсутствовать — создаём её
+                    existing = next((m for m in all_muscles if m.name == muscle_name), None)
+                    if existing:
+                        link = await session.execute(
+                            select(MuscleZoneMuscle).where(
+                                MuscleZoneMuscle.zone_id == zone_id,
+                                MuscleZoneMuscle.muscle_id == existing.id,
+                            )
+                        )
+                        if link.scalar_one_or_none() is None:
+                            session.add(
+                                MuscleZoneMuscle(
+                                    zone_id=zone_id,
+                                    muscle_id=existing.id,
+                                )
+                            )
                     continue
                 
-                new_muscle = Muscle(name=muscle_name, group_id=group_id)
+                new_muscle = Muscle(name=muscle_name)
                 created_muscle = await muscle_repo.add(new_muscle)
                 existing_muscle_names.add(muscle_name)
-                logger.info(f"Создана мышца '{muscle_name}' (ID: {created_muscle.id}) в группе '{group_name}'")
+                session.add(MuscleZoneMuscle(zone_id=zone_id, muscle_id=created_muscle.id))
+                logger.info(
+                    f"Создана мышца '{muscle_name}' (ID: {created_muscle.id}) в зоне '{zone_name}'"
+                )
         
         logger.info("Заполнение базы данных завершено успешно!")
 

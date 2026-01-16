@@ -219,6 +219,7 @@ class TestWorkoutUseCase:
         )
         mock_machine_repository.get_by_id.assert_called_once_with(1)
         mock_set_entry_repository.add_set_entry.assert_called_once()
+        mock_set_entry_repository.add_set_entry_snapshots.assert_called_once_with(1, [], [])
 
     async def test_record_set_no_active_session(
         self,
@@ -397,7 +398,7 @@ class TestWorkoutUseCase:
             machine_id=5,
             weight=80.0,
             reps=8,
-            failure=False,
+            is_failure=False,
             created_at=now,
             updated_at=now,
         )

@@ -11,7 +11,7 @@ class SetEntryDTO(BaseModel):
     machine_id: int = Field(..., description="ID тренажёра")
     weight: float = Field(..., description="Вес в килограммах")
     reps: int = Field(..., description="Количество повторений")
-    failure: bool = Field(default=False, description="Был ли отказ")
+    is_failure: bool = Field(default=False, description="Был ли отказ")
     created_at: datetime = Field(..., description="Дата создания")
     updated_at: datetime = Field(..., description="Дата обновления")
 

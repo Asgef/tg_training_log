@@ -10,7 +10,7 @@ from src.application.dto import MachineInputDTO
 from src.infrastructure.web.handlers.machine.states import MachineStates
 from src.infrastructure.web.handlers.machine.base import safe_edit_text
 from src.infrastructure.web.handlers.machine.keyboards import (
-    build_muscle_groups_keyboard,
+    build_muscle_zones_keyboard,
     build_individual_muscles_keyboard,
 )
 
@@ -65,27 +65,40 @@ async def process_machine_name(
             return
 
         # Сохраняем название в FSM и переходим к выбору мышц
-        await state.update_data(machine_name=machine_input.name, selected_muscle_ids=[])
+        await state.update_data(
+            machine_name=machine_input.name,
+            selected_zone_ids=[],
+            selected_muscle_ids=[],
+        )
         
-        # Получаем группы мышц
-        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
+        # Получаем зоны
+        muscle_zones = await machine_management_use_case.get_all_muscle_zones()
         
-        if not muscle_groups:
-            logger.warning(f"В базе данных нет групп мышц. Создаю тренажер без мышц.")
-            new_machine = await machine_management_use_case.add_machine(user_id, machine_input.name, None, [])
-            logger.info(f"Пользователь {user_id} успешно добавил тренажёр {new_machine.id} ({new_machine.name}).")
-            await message.answer(f"Тренажер '{new_machine.name}' успешно добавлен! (В базе данных пока нет групп мышц)")
+        if not muscle_zones:
+            logger.warning("В базе данных нет зон. Создаю тренажер без зон/мышц.")
+            new_machine = await machine_management_use_case.add_machine(
+                user_id, machine_input.name, None, [], []
+            )
+            logger.info(
+                "Пользователь %s успешно добавил тренажёр %s (%s).",
+                user_id,
+                new_machine.id,
+                new_machine.name,
+            )
+            await message.answer(
+                f"Тренажер '{new_machine.name}' успешно добавлен! (В базе данных пока нет зон)"
+            )
             await state.clear()
             return
         
-        # Предлагаем выбрать группы мышц или отдельные мышцы с визуальной индикацией
-        keyboard = await build_muscle_groups_keyboard(
-            muscle_groups, [], None, machine_management_use_case, is_creation=True
+        # Предлагаем выбрать зоны или отдельные мышцы
+        keyboard = await build_muscle_zones_keyboard(
+            muscle_zones, [], None, machine_management_use_case, is_creation=True
         )
         
         await message.answer(
             f"Тренажер '{machine_input.name}' сохранен.\n\n"
-            "Выберите группы мышц или отдельные мышцы для этого тренажера:",
+            "Выберите зоны или отдельные мышцы для этого тренажера:",
             reply_markup=keyboard
         )
         await state.set_state(MachineStates.waiting_for_muscle_selection)
@@ -119,7 +132,9 @@ async def skip_muscle_selection_callback(
             await state.clear()
             return
         
-        new_machine = await machine_management_use_case.add_machine(user_id, machine_name, None, [])
+        new_machine = await machine_management_use_case.add_machine(
+            user_id, machine_name, None, [], []
+        )
         logger.info(f"Пользователь {user_id} успешно добавил тренажёр {new_machine.id} ({new_machine.name}) без мышц.")
         await callback.message.edit_text(f"Тренажер '{new_machine.name}' успешно добавлен!")
         await callback.answer()
@@ -131,27 +146,22 @@ async def skip_muscle_selection_callback(
         await state.clear()
 
 
-@router.callback_query(F.data.startswith("select_group_"))
-async def select_group_callback(
+@router.callback_query(F.data.startswith("select_zone_"))
+async def select_zone_callback(
     callback: CallbackQuery,
     state: FSMContext,
     machine_management_use_case: IMachineManagementUseCase,
 ) -> None:
-    """Обработчик выбора группы мышц при создании - переключает все мышцы группы (добавляет/удаляет)."""
+    """Обработчик выбора зоны при создании."""
     user_id = callback.from_user.id
-    group_id = int(callback.data.split('_')[-1])
+    zone_id = int(callback.data.split('_')[-1])
     
     try:
-        # Получаем мышцы группы
-        muscles = await machine_management_use_case.get_muscles_by_group_id(group_id)
-        
-        if not muscles:
-            await callback.answer("В этой группе нет мышц.", show_alert=True)
-            return
-        
         # Получаем данные из FSM
         data = await state.get_data()
         machine_name = data.get("machine_name")
+        selected_zone_ids = data.get("selected_zone_ids", [])
+        selected_zone_ids = data.get("selected_zone_ids", [])
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
         if not machine_name:
@@ -160,39 +170,40 @@ async def select_group_callback(
             await state.clear()
             return
         
-        # Получаем группу для отображения
-        group = await machine_management_use_case.get_muscle_group_by_id(group_id)
-        group_name = group.name if group else f"Группа {group_id}"
-        
-        # Проверяем, все ли мышцы группы уже выбраны
-        group_muscle_ids = [m.id for m in muscles]
-        all_selected = all(mid in selected_muscle_ids for mid in group_muscle_ids)
-        
-        if all_selected:
-            # Удаляем все мышцы группы
-            selected_muscle_ids = [mid for mid in selected_muscle_ids if mid not in group_muscle_ids]
-            action_text = f"Удалены мышцы из группы '{group_name}'"
+        zone = await machine_management_use_case.get_muscle_zone_by_id(zone_id)
+        zone_name = zone.name if zone else f"Зона {zone_id}"
+
+        if zone_id in selected_zone_ids:
+            selected_zone_ids.remove(zone_id)
+            action_text = f"Зона '{zone_name}' удалена"
         else:
-            # Добавляем все мышцы группы (только те, которых еще нет)
-            new_muscle_ids = [mid for mid in group_muscle_ids if mid not in selected_muscle_ids]
-            selected_muscle_ids.extend(new_muscle_ids)
-            action_text = f"Добавлены мышцы из группы '{group_name}'"
-        
-        await state.update_data(selected_muscle_ids=selected_muscle_ids)
+            selected_zone_ids.append(zone_id)
+            action_text = f"Зона '{zone_name}' добавлена"
+
+        await state.update_data(
+            selected_zone_ids=selected_zone_ids,
+            selected_muscle_ids=selected_muscle_ids,
+        )
         await callback.answer(action_text)
         
-        # Получаем группы мышц для меню
-        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
-        if not muscle_groups:
-            await callback.message.edit_text("В базе данных нет групп мышц.")
+        # Получаем зоны для меню
+        muscle_zones = await machine_management_use_case.get_all_muscle_zones()
+        if not muscle_zones:
+            await callback.message.edit_text("В базе данных нет зон.")
             return
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await build_muscle_groups_keyboard(
-            muscle_groups, selected_muscle_ids, None, machine_management_use_case, is_creation=True
+        keyboard = await build_muscle_zones_keyboard(
+            muscle_zones, selected_zone_ids, None, machine_management_use_case, is_creation=True
         )
         
-        # Формируем текст с обновленным списком мышц
+        # Формируем текст с обновленным списком зон и мышц
+        selected_zones = (
+            await machine_management_use_case.get_muscle_zones_by_ids(selected_zone_ids)
+            if selected_zone_ids
+            else []
+        )
+        zones_str = ", ".join([z.name for z in selected_zones]) if selected_zones else "Нет"
         selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
         if selected_muscles:
             muscles_list = [m.name for m in selected_muscles]
@@ -205,22 +216,27 @@ async def select_group_callback(
         
         message_text = (
             f"Тренажер: {machine_name}\n\n"
+            f"Выбранные зоны ({len(selected_zone_ids)}):\n{zones_str}\n\n"
             f"Выбранные мышцы ({len(selected_muscle_ids)}):\n{muscles_str}\n\n"
-            "Выберите группы мышц или отдельные мышцы:"
+            "Выберите зоны или отдельные мышцы:"
         )
         
         if len(message_text) > 4096:
             message_text = (
                 f"Тренажер: {machine_name}\n\n"
+                f"Выбранные зоны: {len(selected_zone_ids)} шт.\n"
                 f"Выбранные мышцы: {len(selected_muscle_ids)} шт.\n\n"
-                "Выберите группы мышц или отдельные мышцы:"
+                "Выберите зоны или отдельные мышцы:"
             )
         
         await safe_edit_text(callback, message_text, reply_markup=keyboard)
         
     except Exception as e:
-        logger.error(f"Ошибка в select_group_callback для пользователя {user_id}, группа {group_id}: {e}", exc_info=True)
-        await callback.message.answer("Произошла ошибка при выборе группы мышц.")
+        logger.error(
+            f"Ошибка в select_zone_callback для пользователя {user_id}, зона {zone_id}: {e}",
+            exc_info=True,
+        )
+        await callback.message.answer("Произошла ошибка при выборе зоны.")
         await callback.answer()
 
 
@@ -234,7 +250,7 @@ async def select_individual_muscles_callback(
     user_id = callback.from_user.id
     
     try:
-        # Получаем все мышцы, сгруппированные по группам
+        # Получаем все мышцы
         all_muscles = await machine_management_use_case.get_all_muscles()
         
         if not all_muscles:
@@ -244,17 +260,25 @@ async def select_individual_muscles_callback(
         # Получаем данные из FSM один раз
         data = await state.get_data()
         machine_name = data.get("machine_name", "Новый тренажер")
+        selected_zone_ids = data.get("selected_zone_ids", [])
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
         keyboard = await build_individual_muscles_keyboard(
             all_muscles, selected_muscle_ids, None, is_creation=True
         )
         
+        selected_zones = (
+            await machine_management_use_case.get_muscle_zones_by_ids(selected_zone_ids)
+            if selected_zone_ids
+            else []
+        )
         selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        zones_str = ", ".join([z.name for z in selected_zones]) if selected_zones else "Нет"
         selected_names = ", ".join([m.name for m in selected_muscles]) if selected_muscles else "Нет"
         
         await callback.message.edit_text(
             f"Тренажер: {machine_name}\n\n"
+            f"Выбранные зоны ({len(selected_zone_ids)}):\n{zones_str}\n\n"
             f"Выбранные мышцы ({len(selected_muscle_ids)}):\n{selected_names}\n\n"
             "Нажмите на мышцу, чтобы добавить/удалить её:",
             reply_markup=keyboard
@@ -313,23 +337,30 @@ async def add_more_muscles_callback(
     user_id = callback.from_user.id
     
     try:
-        # Получаем группы мышц
-        muscle_groups = await machine_management_use_case.get_all_muscle_groups()
+        # Получаем зоны
+        muscle_zones = await machine_management_use_case.get_all_muscle_zones()
         
-        if not muscle_groups:
-            await callback.answer("В базе данных нет групп мышц.", show_alert=True)
+        if not muscle_zones:
+            await callback.answer("В базе данных нет зон.", show_alert=True)
             return
         
         data = await state.get_data()
         machine_name = data.get("machine_name", "Новый тренажер")
+        selected_zone_ids = data.get("selected_zone_ids", [])
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await build_muscle_groups_keyboard(
-            muscle_groups, selected_muscle_ids, None, machine_management_use_case, is_creation=True
+        keyboard = await build_muscle_zones_keyboard(
+            muscle_zones, selected_zone_ids, None, machine_management_use_case, is_creation=True
         )
         
+        selected_zones = (
+            await machine_management_use_case.get_muscle_zones_by_ids(selected_zone_ids)
+            if selected_zone_ids
+            else []
+        )
         selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids) if selected_muscle_ids else []
+        zones_str = ", ".join([z.name for z in selected_zones]) if selected_zones else "Нет"
         if selected_muscles:
             muscles_list = [m.name for m in selected_muscles]
             muscles_str = ", ".join(muscles_list)
@@ -341,15 +372,17 @@ async def add_more_muscles_callback(
         
         message_text = (
             f"Тренажер: {machine_name}\n\n"
+            f"Выбранные зоны ({len(selected_zone_ids)}):\n{zones_str}\n\n"
             f"Выбранные мышцы ({len(selected_muscle_ids)}):\n{muscles_str}\n\n"
-            "Выберите группы мышц или отдельные мышцы:"
+            "Выберите зоны или отдельные мышцы:"
         )
         
         if len(message_text) > 4096:
             message_text = (
                 f"Тренажер: {machine_name}\n\n"
+                f"Выбранные зоны: {len(selected_zone_ids)} шт.\n"
                 f"Выбранные мышцы: {len(selected_muscle_ids)} шт.\n\n"
-                "Выберите группы мышц или отдельные мышцы:"
+                "Выберите зоны или отдельные мышцы:"
             )
         
         await safe_edit_text(callback, message_text, reply_markup=keyboard)
@@ -383,7 +416,7 @@ async def finish_machine_creation_callback(
         
         # Создаем тренажер с выбранными мышцами
         new_machine = await machine_management_use_case.add_machine(
-            user_id, machine_name, None, selected_muscle_ids
+            user_id, machine_name, None, selected_zone_ids, selected_muscle_ids
         )
         
         logger.info(
@@ -391,6 +424,11 @@ async def finish_machine_creation_callback(
             f"({new_machine.name}) с {len(selected_muscle_ids)} мышцами."
         )
         
+        zones_str = "Не указаны"
+        if selected_zone_ids:
+            selected_zones = await machine_management_use_case.get_muscle_zones_by_ids(selected_zone_ids)
+            zones_str = ", ".join([z.name for z in selected_zones])
+
         muscles_str = "Не указаны"
         if selected_muscle_ids:
             selected_muscles = await machine_management_use_case.get_muscles_by_ids(selected_muscle_ids)
@@ -398,6 +436,7 @@ async def finish_machine_creation_callback(
         
         await callback.message.edit_text(
             f"✅ Тренажер '{new_machine.name}' успешно добавлен!\n\n"
+            f"Зоны: {zones_str}\n"
             f"Мышцы: {muscles_str}"
         )
         await callback.answer()

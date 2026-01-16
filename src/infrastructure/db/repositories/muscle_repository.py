@@ -6,19 +6,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.application.repositories import IMuscleRepository, IMuscleGroupRepository
-from src.domain.models import Muscle, MuscleGroup
+from src.application.repositories import IMuscleRepository, IMuscleZoneRepository
+from src.domain.models import Muscle, MuscleZone, MuscleZoneMuscle
 
 logger = logging.getLogger(__name__)
 
 
-class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
+class MuscleRepository(IMuscleRepository, IMuscleZoneRepository):
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def get_by_id(self, item_id: Any) -> Optional[Muscle]:
         try:
-            stmt = select(Muscle).where(Muscle.id == item_id)
+            stmt = (
+                select(Muscle)
+                .where(Muscle.id == item_id)
+                .options(selectinload(Muscle.zones))
+                .execution_options(populate_existing=True)
+            )
             result = await self.session.execute(stmt)
             muscle = result.scalar_one_or_none()
             if muscle:
@@ -109,7 +114,11 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
 
     async def get_all_muscles(self) -> List[Muscle]:
         try:
-            stmt = select(Muscle).options(selectinload(Muscle.group))
+            stmt = (
+                select(Muscle)
+                .options(selectinload(Muscle.zones))
+                .execution_options(populate_existing=True)
+            )
             result = await self.session.execute(stmt)
             muscles = list(result.scalars().all())
             logger.debug(f"Получено {len(muscles)} мышц.")
@@ -126,7 +135,8 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             stmt = (
                 select(Muscle)
                 .where(Muscle.id.in_(muscle_ids))
-                .options(selectinload(Muscle.group))
+                .options(selectinload(Muscle.zones))
+                .execution_options(populate_existing=True)
             )
             result = await self.session.execute(stmt)
             muscles = list(result.scalars().all())
@@ -145,94 +155,115 @@ class MuscleRepository(IMuscleRepository, IMuscleGroupRepository):
             )
             raise
 
-    async def get_muscles_by_group_id(self, group_id: int) -> List[Muscle]:
+    async def get_muscles_by_zone_id(self, zone_id: int) -> List[Muscle]:
         try:
             stmt = (
                 select(Muscle)
-                .where(Muscle.group_id == group_id)
-                .options(selectinload(Muscle.group))
+                .join(MuscleZoneMuscle, MuscleZoneMuscle.muscle_id == Muscle.id)
+                .where(MuscleZoneMuscle.zone_id == zone_id)
+                .options(selectinload(Muscle.zones))
             )
             result = await self.session.execute(stmt)
             muscles = list(result.scalars().all())
-            logger.debug(f"Получено {len(muscles)} мышц для группы {group_id}.")
+            logger.debug(f"Получено {len(muscles)} мышц для зоны {zone_id}.")
             return muscles
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError в get_muscles_by_group_id для группы {group_id}: {e}",
+                f"SQLAlchemyError в get_muscles_by_zone_id для зоны {zone_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Неожиданная ошибка в get_muscles_by_group_id для группы {group_id}: {e}",
+                f"Неожиданная ошибка в get_muscles_by_zone_id для зоны {zone_id}: {e}",
                 exc_info=True,
             )
             raise
 
-    async def get_all_muscle_groups(self) -> List[MuscleGroup]:
+    async def get_all_muscle_zones(self) -> List[MuscleZone]:
         try:
-            stmt = select(MuscleGroup)
+            stmt = select(MuscleZone)
             result = await self.session.execute(stmt)
-            muscle_groups = list(result.scalars().all())
-            logger.debug(f"Получено {len(muscle_groups)} групп мышц.")
-            return muscle_groups
+            muscle_zones = list(result.scalars().all())
+            logger.debug(f"Получено {len(muscle_zones)} зон.")
+            return muscle_zones
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError in get_all_muscle_groups: {e}", exc_info=True
+                f"SQLAlchemyError in get_all_muscle_zones: {e}", exc_info=True
             )
             raise
         except Exception as e:
             logger.error(
-                f"Неожиданная ошибка в get_all_muscle_groups: {e}", exc_info=True
+                f"Неожиданная ошибка в get_all_muscle_zones: {e}", exc_info=True
             )
             raise
 
-    async def get_muscle_group_by_id(self, item_id: Any) -> Optional[MuscleGroup]:
+    async def get_muscle_zone_by_id(self, item_id: Any) -> Optional[MuscleZone]:
         try:
-            stmt = select(MuscleGroup).where(MuscleGroup.id == item_id)
+            stmt = select(MuscleZone).where(MuscleZone.id == item_id)
             result = await self.session.execute(stmt)
-            muscle_group = result.scalar_one_or_none()
-            if muscle_group:
-                logger.debug(f"Retrieved muscle group {item_id}.")
+            muscle_zone = result.scalar_one_or_none()
+            if muscle_zone:
+                logger.debug(f"Получена зона {item_id}.")
             else:
-                logger.debug(f"Muscle group {item_id} not found.")
-            return muscle_group
+                logger.debug(f"Зона {item_id} не найдена.")
+            return muscle_zone
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError в get_muscle_group_by_id для группы {item_id}: {e}",
+                f"SQLAlchemyError в get_muscle_zone_by_id для зоны {item_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Unexpected error in get_muscle_group_by_id for group {item_id}: {e}",
+                f"Unexpected error in get_muscle_zone_by_id for zone {item_id}: {e}",
                 exc_info=True,
             )
             raise
 
-    async def add_muscle_group(self, muscle_group: MuscleGroup) -> MuscleGroup:
-        """Добавляет группу мышц в БД.
+    async def get_muscle_zones_by_ids(self, zone_ids: List[int]) -> List[MuscleZone]:
+        try:
+            stmt = select(MuscleZone).where(MuscleZone.id.in_(zone_ids))
+            result = await self.session.execute(stmt)
+            zones = list(result.scalars().all())
+            logger.debug(f"Получено {len(zones)} зон по ID: {zone_ids}.")
+            return zones
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError в get_muscle_zones_by_ids {zone_ids}: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Unexpected error in get_muscle_zones_by_ids {zone_ids}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def add_muscle_zone(self, muscle_zone: MuscleZone) -> MuscleZone:
+        """Добавляет зону в БД.
         
         Использует flush() для получения ID, но не делает commit().
         Управление транзакцией осуществляется на уровне middleware/use case.
         """
         try:
-            self.session.add(muscle_group)
+            self.session.add(muscle_zone)
             await self.session.flush()  # Получаем ID, но не коммитим транзакцию
-            await self.session.refresh(muscle_group)
+            await self.session.refresh(muscle_zone)
             logger.info(
-                f"Добавлена новая группа мышц {muscle_group.id} ({muscle_group.name})."
+                f"Добавлена новая зона {muscle_zone.id} ({muscle_zone.name})."
             )
-            return muscle_group
+            return muscle_zone
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError при добавлении группы мышц {muscle_group.name}: {e}",
+                f"SQLAlchemyError при добавлении зоны {muscle_zone.name}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Неожиданная ошибка при добавлении группы мышц {muscle_group.name}: {e}",
+                f"Неожиданная ошибка при добавлении зоны {muscle_zone.name}: {e}",
                 exc_info=True,
             )
             raise

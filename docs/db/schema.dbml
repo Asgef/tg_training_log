@@ -1,0 +1,88 @@
+Project training_log {
+  database_type: "PostgreSQL"
+  Note: "Telegram Training Log bot"
+}
+
+Table users {
+  Note: "Пользователи Telegram и их регистрационные данные"
+  id bigint [pk]
+  is_registered boolean [not null, default: false]
+  google_sheet_url text
+  spreadsheet_id text
+  telegram_username text
+  telegram_firstname text
+  telegram_lastname text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  timezone text [not null, default: "Europe/Berlin"]
+}
+
+Table muscle_groups {
+  Note: "Группы мышц для справочника"
+  id int [pk, increment]
+  name text [not null, unique]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table muscles {
+  Note: "Мышцы, привязанные к группам"
+  id int [pk, increment]
+  name text [not null, unique]
+  group_id int [not null, ref: > muscle_groups.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table machines {
+  Note: "Тренажёры пользователя, включая фото и архивный статус"
+  id int [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  name text [not null]
+  photo_file_id text
+  is_archived boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table machine_muscles {
+  Note: "Связь многие-ко-многим между тренажёрами и мышцами"
+  machine_id int [not null, ref: > machines.id]
+  muscle_id int [not null, ref: > muscles.id]
+
+  Indexes {
+    (machine_id, muscle_id) [pk]
+  }
+}
+
+Table workout_sessions {
+  Note: "Тренировочные сессии пользователя"
+  id int [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  started_at timestamptz [not null]
+  ended_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table set_entries {
+  Note: "Подходы в рамках тренировки: вес, повторы, отказ"
+  id int [pk, increment]
+  session_id int [not null, ref: > workout_sessions.id]
+  machine_id int [not null, ref: > machines.id]
+  weight numeric(5,2) [not null]
+  reps int [not null]
+  failure boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table processed_updates {
+  Note: "Идемпотентность: обработанные Telegram update_id"
+  update_id bigint [pk]
+  processed_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    (processed_at)
+  }
+}

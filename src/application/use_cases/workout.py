@@ -135,9 +135,14 @@ class WorkoutUseCase(IWorkoutUseCase):
                 machine_id=machine_id,
                 weight=weight,
                 reps=reps,
-                failure=failure,
+                is_failure=failure,
             )
             await self.set_entry_repository.add_set_entry(new_set_entry)
+            zone_ids = [zone.id for zone in machine.zones] if machine.zones else []
+            muscle_ids = [muscle.id for muscle in machine.muscles] if machine.muscles else []
+            await self.set_entry_repository.add_set_entry_snapshots(
+                new_set_entry.id, zone_ids, muscle_ids
+            )
             logger.info(
                 "Пользователь записал подход.",
                 user_id=user_id,

@@ -91,9 +91,9 @@ async def test_get_nonexistent_user(user_repository):
 async def test_get_admin_approved_users(user_repository, test_session):
     """Тест получения одобренных администратором пользователей."""
     # Создаём несколько пользователей
-    user1 = User(id=111, telegram_username="user1", is_registered=True)
-    user2 = User(id=222, telegram_username="user2", is_registered=False)
-    user3 = User(id=333, telegram_username="user3", is_registered=True)
+    user1 = User(id=111, telegram_id=111, telegram_username="user1", is_registered=True)
+    user2 = User(id=222, telegram_id=222, telegram_username="user2", is_registered=False)
+    user3 = User(id=333, telegram_id=333, telegram_username="user3", is_registered=True)
     
     await user_repository.add(user1)
     await user_repository.add(user2)

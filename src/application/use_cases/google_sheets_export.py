@@ -106,6 +106,11 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         "Название": m.name,
                         "Фото ID": m.photo_file_id,
                         "Архивирован": "Да" if m.is_archived else "Нет",
+                        "Зоны": (
+                            ", ".join([z.name for z in m.zones])
+                            if m.zones
+                            else ""
+                        ),
                         "Мышцы": (
                             ", ".join([mu.name for mu in m.muscles])
                             if m.muscles

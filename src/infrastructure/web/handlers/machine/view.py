@@ -86,9 +86,11 @@ async def view_machine_details_callback(
             await callback.answer()
             return
 
+        zones_str = ", ".join([z.name for z in machine.zones]) if machine.zones else "Не указаны"
         muscles_str = ", ".join([m.name for m in machine.muscles]) if machine.muscles else "Не указаны"
         text = f"**{machine.name}**\n" \
                f"ID: {machine.id}\n" \
+               f"Зоны: {zones_str}\n" \
                f"Мышцы: {muscles_str}\n" \
                f"Архивирован: {'Да' if machine.is_archived else 'Нет'}"
         

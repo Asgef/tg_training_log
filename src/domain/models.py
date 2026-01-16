@@ -15,6 +15,7 @@ MIN_REPS = 1
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     is_registered: Mapped[bool] = mapped_column(Boolean, default=False)
     google_sheet_url: Mapped[str | None] = mapped_column(Text)
     spreadsheet_id: Mapped[str | None] = mapped_column(Text)
@@ -27,11 +28,11 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
-    timezone: Mapped[str] = mapped_column(Text, default="Europe/Berlin")
+    timezone: Mapped[str] = mapped_column(Text, default="Europe/Moscow")
 
 
-class MuscleGroup(Base):
-    __tablename__ = "muscle_groups"
+class MuscleZone(Base):
+    __tablename__ = "muscle_zones"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -41,13 +42,17 @@ class MuscleGroup(Base):
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
+    muscles: Mapped[List["Muscle"]] = relationship(
+        "Muscle", secondary="muscle_zone_muscles", back_populates="zones", lazy="selectin"
+    )
+
     @validates("name")
     def validate_name(self, key: str, value: str) -> str:
-        """Валидация названия группы мышц."""
+        """Валидация названия зоны."""
         if not value or not value.strip():
-            raise ValueError("Название группы мышц не может быть пустым")
+            raise ValueError("Название зоны не может быть пустым")
         if len(value.strip()) > MAX_NAME_LENGTH:
-            raise ValueError(f"Название группы мышц не может быть длиннее {MAX_NAME_LENGTH} символов")
+            raise ValueError(f"Название зоны не может быть длиннее {MAX_NAME_LENGTH} символов")
         return value.strip()
 
 
@@ -55,7 +60,6 @@ class Muscle(Base):
     __tablename__ = "muscles"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, unique=True)
-    group_id: Mapped[int] = mapped_column(ForeignKey("muscle_groups.id"))
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -63,8 +67,8 @@ class Muscle(Base):
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
-    group: Mapped["MuscleGroup"] = relationship(
-        "MuscleGroup", backref="muscles", lazy="selectin"
+    zones: Mapped[List["MuscleZone"]] = relationship(
+        "MuscleZone", secondary="muscle_zone_muscles", back_populates="muscles", lazy="selectin"
     )
 
     @validates("name")
@@ -75,6 +79,18 @@ class Muscle(Base):
         if len(value.strip()) > MAX_NAME_LENGTH:
             raise ValueError(f"Название мышцы не может быть длиннее {MAX_NAME_LENGTH} символов")
         return value.strip()
+
+
+class MuscleZoneMuscle(Base):
+    __tablename__ = "muscle_zone_muscles"
+    zone_id: Mapped[int] = mapped_column(ForeignKey("muscle_zones.id"), primary_key=True)
+    muscle_id: Mapped[int] = mapped_column(ForeignKey("muscles.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
 
 class Machine(Base):
@@ -94,6 +110,9 @@ class Machine(Base):
     muscles: Mapped[List["Muscle"]] = relationship(
         "Muscle", secondary="machine_muscles", backref="machines", lazy="selectin"
     )
+    zones: Mapped[List["MuscleZone"]] = relationship(
+        "MuscleZone", secondary="machine_zones", backref="machines", lazy="selectin"
+    )
 
     @validates("name")
     def validate_name(self, key: str, value: str) -> str:
@@ -109,6 +128,24 @@ class MachineMuscle(Base):
     __tablename__ = "machine_muscles"
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"), primary_key=True)
     muscle_id: Mapped[int] = mapped_column(ForeignKey("muscles.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+class MachineZone(Base):
+    __tablename__ = "machine_zones"
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"), primary_key=True)
+    zone_id: Mapped[int] = mapped_column(ForeignKey("muscle_zones.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
 
 class WorkoutSession(Base):
@@ -130,14 +167,21 @@ class SetEntry(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("workout_sessions.id"))
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"))
-    weight: Mapped[float] = mapped_column(Numeric(5, 2))
+    weight: Mapped[float] = mapped_column(Numeric(6, 2))
     reps: Mapped[int] = mapped_column(Integer)
-    failure: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_failure: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    zones: Mapped[List["MuscleZone"]] = relationship(
+        "MuscleZone", secondary="set_entry_zones", backref="set_entries", lazy="selectin"
+    )
+    muscles: Mapped[List["Muscle"]] = relationship(
+        "Muscle", secondary="set_entry_muscles", backref="set_entries", lazy="selectin"
     )
 
     @validates("weight")
@@ -153,6 +197,30 @@ class SetEntry(Base):
         if value < MIN_REPS:
             raise ValueError(f"Количество повторений должно быть не меньше {MIN_REPS}")
         return value
+
+
+class SetEntryZone(Base):
+    __tablename__ = "set_entry_zones"
+    set_entry_id: Mapped[int] = mapped_column(ForeignKey("set_entries.id"), primary_key=True)
+    zone_id: Mapped[int] = mapped_column(ForeignKey("muscle_zones.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+class SetEntryMuscle(Base):
+    __tablename__ = "set_entry_muscles"
+    set_entry_id: Mapped[int] = mapped_column(ForeignKey("set_entries.id"), primary_key=True)
+    muscle_id: Mapped[int] = mapped_column(ForeignKey("muscles.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
 
 class ProcessedUpdate(Base):

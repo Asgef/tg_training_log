@@ -103,7 +103,7 @@ class UserRepository(IUserRepository):
 
     async def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
         try:
-            stmt = select(User).where(User.id == telegram_id)
+            stmt = select(User).where(User.telegram_id == telegram_id)
             result = await self.session.execute(stmt)
             user = result.scalar_one_or_none()
             if user:

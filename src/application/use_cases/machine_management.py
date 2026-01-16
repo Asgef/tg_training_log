@@ -1,15 +1,15 @@
 import logging
 from typing import Optional, List
-from src.application.repositories import IMachineRepository, IMuscleRepository
+from src.application.repositories import IMachineRepository, IMuscleRepository, IMuscleZoneRepository
 from src.application.use_case_interfaces import IMachineManagementUseCase
-from src.domain.models import Machine, Muscle, MuscleGroup
+from src.domain.models import Machine, Muscle, MuscleZone
 from src.application.dto import (
     MachineDTO,
     MuscleDTO,
-    MuscleGroupDTO,
+    MuscleZoneDTO,
     machine_to_dto,
     muscle_to_dto,
-    muscle_group_to_dto,
+    muscle_zone_to_dto,
 )
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class MachineManagementUseCase(IMachineManagementUseCase):
     def __init__(
         self,
         machine_repository: IMachineRepository,
-        muscle_repository: IMuscleRepository,
+        muscle_repository: IMuscleRepository | IMuscleZoneRepository,
     ):
         self.machine_repository = machine_repository
         self.muscle_repository = muscle_repository
@@ -29,6 +29,7 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         user_id: int,
         name: str,
         photo_file_id: Optional[str],
+        zone_ids: List[int],
         muscle_ids: List[int],
     ) -> MachineDTO:
         try:
@@ -38,13 +39,23 @@ class MachineManagementUseCase(IMachineManagementUseCase):
             existing_machine = await self.machine_repository.get_user_machine_by_name(
                 user_id, name.strip()
             )
-            if existing_machine:
+            if existing_machine and not existing_machine.is_archived:
                 logger.warning(
                     f"Пользователь {user_id} попытался добавить дублирующееся название тренажёра: {name.strip()}"
                 )
                 raise ValueError(
                     f"Тренажер с названием '{name.strip()}' уже существует."
                 )
+
+            if zone_ids:
+                zones = await self.muscle_repository.get_muscle_zones_by_ids(zone_ids)
+                if len(zones) != len(zone_ids):
+                    logger.warning(
+                        f"Пользователь {user_id} предоставил неверные ID зон: {zone_ids}"
+                    )
+                    raise ValueError(
+                        "Один или несколько указанных ID зон не существуют."
+                    )
 
             if muscle_ids:
                 muscles = await self.muscle_repository.get_muscles_by_ids(muscle_ids)
@@ -62,8 +73,8 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                 photo_file_id=photo_file_id,
                 is_archived=False,
             )
-            created_machine = await self.machine_repository.add_machine_with_muscles(
-                new_machine, muscle_ids
+            created_machine = await self.machine_repository.add_machine_with_tags(
+                new_machine, zone_ids, muscle_ids
             )
             logger.info(
                 f"Пользователь {user_id} добавил тренажёр {created_machine.id} ({created_machine.name})."
@@ -110,6 +121,7 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         machine_id: int,
         name: Optional[str],
         photo_file_id: Optional[str],
+        zone_ids: Optional[List[int]],
         muscle_ids: Optional[List[int]],
         is_archived: Optional[bool],
     ) -> Optional[MachineDTO]:
@@ -130,7 +142,11 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                             user_id, name_stripped
                         )
                     )
-                    if existing_machine and existing_machine.id != machine_id:
+                    if (
+                        existing_machine
+                        and existing_machine.id != machine_id
+                        and not existing_machine.is_archived
+                    ):
                         logger.warning(
                             f"Пользователь {user_id} попытался переименовать тренажёр {machine_id} на дублирующееся название: {name_stripped}"
                         )
@@ -144,7 +160,19 @@ class MachineManagementUseCase(IMachineManagementUseCase):
                 machine.is_archived = is_archived
 
             updated_machine = await self.machine_repository.update(machine)
-            
+
+            if zone_ids is not None:
+                zones = await self.muscle_repository.get_muscle_zones_by_ids(zone_ids)
+                if len(zones) != len(zone_ids):
+                    logger.warning(
+                        f"Пользователь {user_id} предоставил неверные ID зон: {zone_ids}"
+                    )
+                    raise ValueError(
+                        "Один или несколько указанных ID зон не существуют."
+                    )
+                await self.machine_repository.update_machine_zones(machine_id, zone_ids)
+                updated_machine = await self.machine_repository.get_by_id(machine_id)
+
             # Обновляем мышцы, если указаны
             if muscle_ids is not None:
                 # Валидируем мышцы
@@ -189,38 +217,38 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         """Проверяет, существует ли тренажёр с таким именем у пользователя."""
         try:
             machine = await self.machine_repository.get_user_machine_by_name(user_id, name.strip())
-            return machine is not None
+            return machine is not None and not machine.is_archived
         except Exception as e:
             logger.error(f"Ошибка при проверке существования тренажёра '{name}' для пользователя {user_id}: {e}")
             return False
 
-    async def get_all_muscle_groups(self) -> List[MuscleGroupDTO]:
-        """Получает все группы мышц."""
+    async def get_all_muscle_zones(self) -> List[MuscleZoneDTO]:
+        """Получает все мышечные зоны."""
         try:
-            groups = await self.muscle_repository.get_all_muscle_groups()
-            return [muscle_group_to_dto(group) for group in groups]
+            zones = await self.muscle_repository.get_all_muscle_zones()
+            return [muscle_zone_to_dto(zone) for zone in zones]
         except Exception as e:
-            logger.error(f"Ошибка при получении групп мышц: {e}")
+            logger.error(f"Ошибка при получении зон: {e}")
             return []
 
-    async def get_muscles_by_group_id(self, group_id: int) -> List[MuscleDTO]:
-        """Получает мышцы по ID группы."""
+    async def get_muscles_by_zone_id(self, zone_id: int) -> List[MuscleDTO]:
+        """Получает мышцы по ID зоны."""
         try:
-            muscles = await self.muscle_repository.get_muscles_by_group_id(group_id)
+            muscles = await self.muscle_repository.get_muscles_by_zone_id(zone_id)
             return [muscle_to_dto(muscle) for muscle in muscles]
         except Exception as e:
-            logger.error(f"Ошибка при получении мышц группы {group_id}: {e}")
+            logger.error(f"Ошибка при получении мышц зоны {zone_id}: {e}")
             return []
 
-    async def get_muscle_group_by_id(self, group_id: int) -> Optional[MuscleGroupDTO]:
-        """Получает группу мышц по ID."""
+    async def get_muscle_zone_by_id(self, zone_id: int) -> Optional[MuscleZoneDTO]:
+        """Получает мышечную зону по ID."""
         try:
-            group = await self.muscle_repository.get_muscle_group_by_id(group_id)
-            if group:
-                return muscle_group_to_dto(group)
+            zone = await self.muscle_repository.get_muscle_zone_by_id(zone_id)
+            if zone:
+                return muscle_zone_to_dto(zone)
             return None
         except Exception as e:
-            logger.error(f"Ошибка при получении группы мышц {group_id}: {e}")
+            logger.error(f"Ошибка при получении зоны {zone_id}: {e}")
             return None
 
     async def get_all_muscles(self) -> List[MuscleDTO]:
@@ -251,3 +279,12 @@ class MachineManagementUseCase(IMachineManagementUseCase):
         except Exception as e:
             logger.error(f"Ошибка при получении мышцы {muscle_id}: {e}")
             return None
+
+    async def get_muscle_zones_by_ids(self, zone_ids: List[int]) -> List[MuscleZoneDTO]:
+        """Получает зоны по списку ID."""
+        try:
+            zones = await self.muscle_repository.get_muscle_zones_by_ids(zone_ids)
+            return [muscle_zone_to_dto(zone) for zone in zones]
+        except Exception as e:
+            logger.error(f"Ошибка при получении зон по ID {zone_ids}: {e}")
+            return []

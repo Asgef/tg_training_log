@@ -26,13 +26,14 @@ class TestRegistrationUseCase:
         """Создаёт тестового пользователя."""
         return User(
             id=123456789,
+            telegram_id=123456789,
             telegram_username="testuser",
             telegram_firstname="Test",
             telegram_lastname="User",
             is_registered=False,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
-            timezone="Europe/Berlin",
+            timezone="Europe/Moscow",
         )
 
     async def test_request_registration_success(

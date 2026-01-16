@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.application.repositories import IMachineRepository
-from src.domain.models import Machine, MachineMuscle
+from src.domain.models import Machine, MachineMuscle, MachineZone, MuscleZone, Muscle
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class MachineRepository(IMachineRepository):
             stmt = (
                 select(Machine)
                 .where(Machine.id == item_id)
-                .options(selectinload(Machine.muscles))
+                .options(selectinload(Machine.muscles), selectinload(Machine.zones))
             )
             result = await self.session.execute(stmt)
             machine = result.scalar_one_or_none()
@@ -121,7 +121,7 @@ class MachineRepository(IMachineRepository):
             stmt = select(Machine).where(Machine.user_id == user_id)
             if not include_archived:
                 stmt = stmt.where(Machine.is_archived.is_(False))
-            stmt = stmt.options(selectinload(Machine.muscles))
+            stmt = stmt.options(selectinload(Machine.muscles), selectinload(Machine.zones))
             result = await self.session.execute(stmt)
             machines = list(result.scalars().all())
             logger.debug(f"Получено {len(machines)} тренажёров для пользователя {user_id}.")
@@ -146,7 +146,7 @@ class MachineRepository(IMachineRepository):
             stmt = (
                 select(Machine)
                 .where(Machine.user_id == user_id, Machine.name == name)
-                .options(selectinload(Machine.muscles))
+                .options(selectinload(Machine.muscles), selectinload(Machine.zones))
             )
             result = await self.session.execute(stmt)
             machine = result.scalar_one_or_none()
@@ -168,10 +168,10 @@ class MachineRepository(IMachineRepository):
             )
             raise
 
-    async def add_machine_with_muscles(
-        self, machine: Machine, muscle_ids: List[int]
+    async def add_machine_with_tags(
+        self, machine: Machine, zone_ids: List[int], muscle_ids: List[int]
     ) -> Machine:
-        """Добавляет тренажёр с мышцами в БД.
+        """Добавляет тренажёр с зонами и мышцами в БД.
         
         Использует flush() для получения ID, но не делает commit().
         Управление транзакцией осуществляется на уровне middleware/use case.
@@ -181,26 +181,32 @@ class MachineRepository(IMachineRepository):
             await self.session.flush()  # Получаем ID тренажёра
 
             for muscle_id in muscle_ids:
-                machine_muscle = MachineMuscle(
-                    machine_id=machine.id, muscle_id=muscle_id
+                self.session.add(
+                    MachineMuscle(machine_id=machine.id, muscle_id=muscle_id)
                 )
-                self.session.add(machine_muscle)
+
+            for zone_id in zone_ids:
+                self.session.add(MachineZone(machine_id=machine.id, zone_id=zone_id))
 
             await self.session.flush()  # Синхронизируем связи, но не коммитим
             await self.session.refresh(machine)
             logger.info(
-                f"Добавлен новый тренажёр {machine.id} с мышцами {muscle_ids} для пользователя {machine.user_id}."
+                "Добавлен новый тренажёр %s с зонами %s и мышцами %s для пользователя %s.",
+                machine.id,
+                zone_ids,
+                muscle_ids,
+                machine.user_id,
             )
             return machine
         except SQLAlchemyError as e:
             logger.error(
-                f"SQLAlchemyError при добавлении тренажёра с мышцами для пользователя {machine.user_id}: {e}",
+                f"SQLAlchemyError при добавлении тренажёра с тегами для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
             raise
         except Exception as e:
             logger.error(
-                f"Неожиданная ошибка при добавлении тренажёра с мышцами для пользователя {machine.user_id}: {e}",
+                f"Неожиданная ошибка при добавлении тренажёра с тегами для пользователя {machine.user_id}: {e}",
                 exc_info=True,
             )
             raise
@@ -219,7 +225,6 @@ class MachineRepository(IMachineRepository):
                 raise ValueError(f"Тренажёр {machine_id} не найден")
             
             # Получаем объекты Muscle для новых связей
-            from src.domain.models import Muscle
             stmt = select(Muscle).where(Muscle.id.in_(muscle_ids))
             result = await self.session.execute(stmt)
             new_muscles = list(result.scalars().all())
@@ -245,6 +250,47 @@ class MachineRepository(IMachineRepository):
         except SQLAlchemyError as e:
             logger.error(
                 f"SQLAlchemyError при обновлении мышц тренажёра {machine_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def update_machine_zones(
+        self, machine_id: int, zone_ids: List[int]
+    ) -> None:
+        """Обновляет связи тренажёра с зонами.
+        
+        Не делает commit() - управление транзакцией осуществляется на уровне middleware/use case.
+        """
+        try:
+            machine = await self.get_by_id(machine_id)
+            if not machine:
+                raise ValueError(f"Тренажёр {machine_id} не найден")
+
+            stmt = select(MuscleZone).where(MuscleZone.id.in_(zone_ids))
+            result = await self.session.execute(stmt)
+            new_zones = list(result.scalars().all())
+
+            if len(new_zones) != len(zone_ids):
+                found_ids = {z.id for z in new_zones}
+                missing_ids = set(zone_ids) - found_ids
+                raise ValueError(f"Зоны с ID {missing_ids} не найдены")
+
+            machine.zones.clear()
+            await self.session.flush()
+            machine.zones.extend(new_zones)
+
+            logger.info(
+                f"Обновлены зоны для тренажёра {machine_id}: {zone_ids}."
+            )
+        except SQLAlchemyError as e:
+            logger.error(
+                f"SQLAlchemyError при обновлении зон тренажёра {machine_id}: {e}",
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при обновлении зон тренажёра {machine_id}: {e}",
                 exc_info=True,
             )
             raise

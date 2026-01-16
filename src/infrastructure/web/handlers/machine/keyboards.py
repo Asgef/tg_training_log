@@ -3,7 +3,7 @@ from typing import List
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
-from src.domain.models import MuscleGroup, Muscle, Machine
+from src.domain.models import MuscleZone, Muscle, Machine
 
 
 class KeyboardBuilder:
@@ -18,19 +18,19 @@ class KeyboardBuilder:
         """
         self.use_case = machine_management_use_case
     
-    async def build_muscle_groups_keyboard(
+    async def build_muscle_zones_keyboard(
         self,
-        muscle_groups: List[MuscleGroup],
-        selected_muscle_ids: list[int],
+        muscle_zones: List[MuscleZone],
+        selected_zone_ids: list[int],
         machine_id: int | None,
         is_creation: bool = False,
     ) -> InlineKeyboardMarkup:
         """
-        Построение клавиатуры с группами мышц и визуальной индикацией.
+        Построение клавиатуры с зонами и визуальной индикацией.
         
         Args:
-            muscle_groups: Список групп мышц
-            selected_muscle_ids: Список выбранных ID мышц
+            muscle_zones: Список зон
+            selected_zone_ids: Список выбранных ID зон
             machine_id: ID тренажёра (None для создания)
             is_creation: True для создания, False для редактирования
             
@@ -39,31 +39,20 @@ class KeyboardBuilder:
         """
         keyboard_buttons = []
         
-        for group in muscle_groups:
-            # Получаем мышцы группы для проверки статуса
-            group_muscles = await self.use_case.get_muscles_by_group_id(group.id)
-            group_muscle_ids = [m.id for m in group_muscles] if group_muscles else []
-            
-            # Проверяем, все ли мышцы группы выбраны
-            all_selected = all(mid in selected_muscle_ids for mid in group_muscle_ids) if group_muscle_ids else False
-            some_selected = any(mid in selected_muscle_ids for mid in group_muscle_ids) if group_muscle_ids else False
+        for zone in muscle_zones:
+            is_selected = zone.id in selected_zone_ids
             
             # Выбираем эмодзи в зависимости от статуса
-            if all_selected:
-                emoji = "✅"
-            elif some_selected:
-                emoji = "🟡"
-            else:
-                emoji = "📦"
+            emoji = "✅" if is_selected else "📦"
             
             if is_creation:
-                callback_data = f"select_group_{group.id}"
+                callback_data = f"select_zone_{zone.id}"
             else:
-                callback_data = f"edit_select_group_{group.id}"
+                callback_data = f"edit_select_zone_{zone.id}"
             
             keyboard_buttons.append([
                 InlineKeyboardButton(
-                    text=f"{emoji} {group.name}",
+                    text=f"{emoji} {zone.name}",
                     callback_data=callback_data
                 )
             ])
@@ -114,10 +103,16 @@ class KeyboardBuilder:
         """
         keyboard_buttons = []
         
-        # Группируем мышцы по группам
+        # Группируем мышцы по зонам (одна мышца -> одна группа отображения)
         muscles_by_group: dict = {}
         for muscle in all_muscles:
-            group_name = muscle.group.name if muscle.group else "Без группы"
+            if muscle.zones:
+                if len(muscle.zones) == 1:
+                    group_name = muscle.zones[0].name
+                else:
+                    group_name = "Смешанные зоны"
+            else:
+                group_name = "Без зоны"
             if group_name not in muscles_by_group:
                 muscles_by_group[group_name] = []
             muscles_by_group[group_name].append(muscle)
@@ -129,7 +124,7 @@ class KeyboardBuilder:
                 keyboard_buttons.append([
                     InlineKeyboardButton(
                         text=f"📦 {group_name}",
-                        callback_data="muscle_group_header"  # Неактивная кнопка
+                        callback_data="zone_header"
                     )
                 ])
             
@@ -220,25 +215,25 @@ class KeyboardBuilder:
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Изменить название", callback_data=f"edit_machine_name_{machine_id}")],
             [InlineKeyboardButton(text="Изменить фото", callback_data=f"edit_machine_photo_{machine_id}")],
-            [InlineKeyboardButton(text="Редактировать мышцы", callback_data=f"edit_machine_muscles_{machine_id}")],
+            [InlineKeyboardButton(text="Редактировать зоны/мышцы", callback_data=f"edit_machine_muscles_{machine_id}")],
             [InlineKeyboardButton(text="Отмена", callback_data=f"view_machine_{machine_id}")]
         ])
 
 
 # Функции-обертки для обратной совместимости
-async def build_muscle_groups_keyboard(
-    muscle_groups: List[MuscleGroup],
-    selected_muscle_ids: list[int],
+async def build_muscle_zones_keyboard(
+    muscle_zones: List[MuscleZone],
+    selected_zone_ids: list[int],
     machine_id: int | None,
     machine_management_use_case: IMachineManagementUseCase,
     is_creation: bool = False,
 ) -> InlineKeyboardMarkup:
     """
-    Вспомогательная функция для построения клавиатуры с группами мышц и визуальной индикацией.
+    Вспомогательная функция для построения клавиатуры с зонами и визуальной индикацией.
     
     Args:
-        muscle_groups: Список групп мышц
-        selected_muscle_ids: Список выбранных ID мышц
+        muscle_zones: Список зон
+        selected_zone_ids: Список выбранных ID зон
         machine_id: ID тренажёра (None для создания)
         machine_management_use_case: Use case для работы с тренажёрами
         is_creation: True для создания, False для редактирования
@@ -247,8 +242,8 @@ async def build_muscle_groups_keyboard(
         InlineKeyboardMarkup с кнопками групп мышц
     """
     builder = KeyboardBuilder(machine_management_use_case)
-    return await builder.build_muscle_groups_keyboard(
-        muscle_groups, selected_muscle_ids, machine_id, is_creation
+    return await builder.build_muscle_zones_keyboard(
+        muscle_zones, selected_zone_ids, machine_id, is_creation
     )
 
 

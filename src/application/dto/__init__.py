@@ -1,7 +1,7 @@
 """DTO (Data Transfer Objects) для передачи данных между слоями приложения."""
 
 from .user import UserDTO
-from .machine import MachineDTO, MuscleDTO, MuscleGroupDTO
+from .machine import MachineDTO, MuscleDTO, MuscleZoneDTO
 from .workout import WorkoutSessionDTO
 from .set_entry import SetEntryDTO
 from .input import (
@@ -17,7 +17,7 @@ from .converters import (
     machine_to_dto,
     machine_from_dto,
     muscle_to_dto,
-    muscle_group_to_dto,
+    muscle_zone_to_dto,
     workout_session_to_dto,
     workout_session_from_dto,
     set_entry_to_dto,
@@ -28,7 +28,7 @@ __all__ = [
     "UserDTO",
     "MachineDTO",
     "MuscleDTO",
-    "MuscleGroupDTO",
+    "MuscleZoneDTO",
     "WorkoutSessionDTO",
     "SetEntryDTO",
     "SetEntryInputDTO",
@@ -41,7 +41,7 @@ __all__ = [
     "machine_to_dto",
     "machine_from_dto",
     "muscle_to_dto",
-    "muscle_group_to_dto",
+    "muscle_zone_to_dto",
     "workout_session_to_dto",
     "workout_session_from_dto",
     "set_entry_to_dto",

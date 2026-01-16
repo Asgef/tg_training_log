@@ -1,6 +1,6 @@
 """Integration тесты для MachineRepository."""
 import pytest
-from src.domain.models import Machine, User, Muscle, MuscleGroup
+from src.domain.models import Machine, User, Muscle, MuscleZone
 
 
 @pytest.mark.integration
@@ -149,21 +149,21 @@ async def test_add_machine_with_muscles(
     test_session.add(user)
     await test_session.commit()
     
-    # Создаём группу мышц и мышцы
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
+    # Создаём зону и мышцы
+    zone = MuscleZone(name="Test Zone")
+    await muscle_repository.add_muscle_zone(zone)
     await test_session.commit()
     
-    muscle1 = Muscle(name="Muscle 1", group_id=group.id)
-    muscle2 = Muscle(name="Muscle 2", group_id=group.id)
+    muscle1 = Muscle(name="Muscle 1")
+    muscle2 = Muscle(name="Muscle 2")
     await muscle_repository.add(muscle1)
     await muscle_repository.add(muscle2)
     await test_session.commit()
     
-    # Создаём тренажёр с мышцами
+    # Создаём тренажёр с зонами и мышцами
     machine = Machine(name="Machine with Muscles", user_id=test_user_data["id"])
-    created_machine = await machine_repository.add_machine_with_muscles(
-        machine, [muscle1.id, muscle2.id]
+    created_machine = await machine_repository.add_machine_with_tags(
+        machine, [zone.id], [muscle1.id, muscle2.id]
     )
     await test_session.commit()
     
@@ -171,6 +171,7 @@ async def test_add_machine_with_muscles(
     assert created_machine.id is not None
     retrieved_machine = await machine_repository.get_by_id(created_machine.id)
     assert retrieved_machine is not None
+    assert len(retrieved_machine.zones) == 1
     assert len(retrieved_machine.muscles) == 2
     muscle_ids = {m.id for m in retrieved_machine.muscles}
     assert muscle1.id in muscle_ids
@@ -187,22 +188,24 @@ async def test_update_machine_muscles(
     test_session.add(user)
     await test_session.commit()
     
-    # Создаём группу мышц и мышцы
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
+    # Создаём зону и мышцы
+    zone = MuscleZone(name="Test Zone")
+    await muscle_repository.add_muscle_zone(zone)
     await test_session.commit()
     
-    muscle1 = Muscle(name="Muscle 1", group_id=group.id)
-    muscle2 = Muscle(name="Muscle 2", group_id=group.id)
-    muscle3 = Muscle(name="Muscle 3", group_id=group.id)
+    muscle1 = Muscle(name="Muscle 1")
+    muscle2 = Muscle(name="Muscle 2")
+    muscle3 = Muscle(name="Muscle 3")
     await muscle_repository.add(muscle1)
     await muscle_repository.add(muscle2)
     await muscle_repository.add(muscle3)
     await test_session.commit()
     
-    # Создаём тренажёр с начальными мышцами
+    # Создаём тренажёр с начальными зонами и мышцами
     machine = Machine(name="Machine", user_id=test_user_data["id"])
-    await machine_repository.add_machine_with_muscles(machine, [muscle1.id, muscle2.id])
+    await machine_repository.add_machine_with_tags(
+        machine, [zone.id], [muscle1.id, muscle2.id]
+    )
     await test_session.commit()
     
     # Проверяем начальное состояние
@@ -220,6 +223,41 @@ async def test_update_machine_muscles(
     assert muscle1.id not in muscle_ids
     assert muscle2.id in muscle_ids
     assert muscle3.id in muscle_ids
+
+
+@pytest.mark.integration
+async def test_update_machine_zones(
+    machine_repository, muscle_repository, test_user_data, test_session
+):
+    """Тест обновления зон тренажёра."""
+    # Создаём пользователя
+    user = User(**test_user_data)
+    test_session.add(user)
+    await test_session.commit()
+
+    zone1 = MuscleZone(name="Zone 1")
+    zone2 = MuscleZone(name="Zone 2")
+    zone3 = MuscleZone(name="Zone 3")
+    await muscle_repository.add_muscle_zone(zone1)
+    await muscle_repository.add_muscle_zone(zone2)
+    await muscle_repository.add_muscle_zone(zone3)
+    await test_session.commit()
+
+    machine = Machine(name="Machine", user_id=test_user_data["id"])
+    await machine_repository.add_machine_with_tags(machine, [zone1.id, zone2.id], [])
+    await test_session.commit()
+
+    retrieved_machine = await machine_repository.get_by_id(machine.id)
+    assert len(retrieved_machine.zones) == 2
+
+    await machine_repository.update_machine_zones(machine.id, [zone2.id, zone3.id])
+    await test_session.commit()
+
+    updated_machine = await machine_repository.get_by_id(machine.id)
+    zone_ids = {z.id for z in updated_machine.zones}
+    assert zone1.id not in zone_ids
+    assert zone2.id in zone_ids
+    assert zone3.id in zone_ids
 
 
 @pytest.mark.integration

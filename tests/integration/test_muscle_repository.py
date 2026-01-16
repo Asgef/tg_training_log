@@ -1,42 +1,44 @@
 """Integration тесты для MuscleRepository."""
 import pytest
-from src.domain.models import Muscle, MuscleGroup
+from sqlalchemy import select
+from src.domain.models import Muscle, MuscleZone, MuscleZoneMuscle
 
 
 @pytest.mark.integration
 async def test_create_and_get_muscle(muscle_repository, test_session):
     """Тест создания и получения мышцы."""
-    # Создаём группу мышц
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
+    # Создаём зону
+    zone = MuscleZone(name="Test Zone")
+    await muscle_repository.add_muscle_zone(zone)
     await test_session.commit()
     
     # Создаём мышцу
-    muscle = Muscle(name="Test Muscle", group_id=group.id)
+    muscle = Muscle(name="Test Muscle")
     created_muscle = await muscle_repository.add(muscle)
+    muscle_id = created_muscle.id
     await test_session.commit()
+
+    # Связываем мышцу с зоной
+    test_session.add(MuscleZoneMuscle(zone_id=zone.id, muscle_id=muscle_id))
+    await test_session.commit()
+    test_session.expire_all()
     
     # Проверяем
-    assert created_muscle.id is not None
-    assert created_muscle.name == "Test Muscle"
-    assert created_muscle.group_id == group.id
+    assert muscle_id is not None
     
     # Получаем по ID
-    retrieved_muscle = await muscle_repository.get_by_id(created_muscle.id)
+    retrieved_muscle = await muscle_repository.get_by_id(muscle_id)
     assert retrieved_muscle is not None
     assert retrieved_muscle.name == "Test Muscle"
-    assert retrieved_muscle.group_id == group.id
+    link = await test_session.get(MuscleZoneMuscle, (zone.id, muscle_id))
+    assert link is not None
 
 
 @pytest.mark.integration
 async def test_update_muscle(muscle_repository, test_session):
     """Тест обновления мышцы."""
-    # Создаём группу мышц и мышцу
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
-    await test_session.commit()
-    
-    muscle = Muscle(name="Original Name", group_id=group.id)
+    # Создаём мышцу
+    muscle = Muscle(name="Original Name")
     await muscle_repository.add(muscle)
     await test_session.commit()
     
@@ -56,12 +58,8 @@ async def test_update_muscle(muscle_repository, test_session):
 @pytest.mark.integration
 async def test_delete_muscle(muscle_repository, test_session):
     """Тест удаления мышцы."""
-    # Создаём группу мышц и мышцу
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
-    await test_session.commit()
-    
-    muscle = Muscle(name="To Delete", group_id=group.id)
+    # Создаём мышцу
+    muscle = Muscle(name="To Delete")
     await muscle_repository.add(muscle)
     await test_session.commit()
     
@@ -82,20 +80,27 @@ async def test_delete_muscle(muscle_repository, test_session):
 @pytest.mark.integration
 async def test_get_all_muscles(muscle_repository, test_session):
     """Тест получения всех мышц."""
-    # Создаём группу мышц
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
+    # Создаём зону
+    zone = MuscleZone(name="Test Zone")
+    await muscle_repository.add_muscle_zone(zone)
     await test_session.commit()
     
     # Создаём несколько мышц
-    muscle1 = Muscle(name="Muscle 1", group_id=group.id)
-    muscle2 = Muscle(name="Muscle 2", group_id=group.id)
-    muscle3 = Muscle(name="Muscle 3", group_id=group.id)
+    muscle1 = Muscle(name="Muscle 1")
+    muscle2 = Muscle(name="Muscle 2")
+    muscle3 = Muscle(name="Muscle 3")
     
     await muscle_repository.add(muscle1)
     await muscle_repository.add(muscle2)
     await muscle_repository.add(muscle3)
     await test_session.commit()
+
+    # Связываем мышцы с зоной
+    test_session.add(MuscleZoneMuscle(zone_id=zone.id, muscle_id=muscle1.id))
+    test_session.add(MuscleZoneMuscle(zone_id=zone.id, muscle_id=muscle2.id))
+    test_session.add(MuscleZoneMuscle(zone_id=zone.id, muscle_id=muscle3.id))
+    await test_session.commit()
+    test_session.expire_all()
     
     # Получаем все мышцы
     all_muscles = await muscle_repository.get_all_muscles()
@@ -106,25 +111,21 @@ async def test_get_all_muscles(muscle_repository, test_session):
     assert muscle2.id in muscle_ids
     assert muscle3.id in muscle_ids
     
-    # Проверяем, что загружены группы
-    for muscle in all_muscles:
-        if muscle.id in (muscle1.id, muscle2.id, muscle3.id):
-            assert muscle.group is not None
-            assert muscle.group.id == group.id
+    # Проверяем, что есть связи с зонами
+    for muscle_id in (muscle1.id, muscle2.id, muscle3.id):
+        link = await test_session.execute(
+            select(MuscleZoneMuscle).where(MuscleZoneMuscle.muscle_id == muscle_id)
+        )
+        assert link.scalar_one_or_none() is not None
 
 
 @pytest.mark.integration
 async def test_get_muscles_by_ids(muscle_repository, test_session):
     """Тест получения мышц по списку ID."""
-    # Создаём группу мышц
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
-    await test_session.commit()
-    
     # Создаём несколько мышц
-    muscle1 = Muscle(name="Muscle 1", group_id=group.id)
-    muscle2 = Muscle(name="Muscle 2", group_id=group.id)
-    muscle3 = Muscle(name="Muscle 3", group_id=group.id)
+    muscle1 = Muscle(name="Muscle 1")
+    muscle2 = Muscle(name="Muscle 2")
+    muscle3 = Muscle(name="Muscle 3")
     
     await muscle_repository.add(muscle1)
     await muscle_repository.add(muscle2)
@@ -143,92 +144,98 @@ async def test_get_muscles_by_ids(muscle_repository, test_session):
 
 
 @pytest.mark.integration
-async def test_get_muscles_by_group_id(muscle_repository, test_session):
-    """Тест получения мышц по ID группы."""
-    # Создаём две группы мышц
-    group1 = MuscleGroup(name="Group 1")
-    group2 = MuscleGroup(name="Group 2")
-    await muscle_repository.add_muscle_group(group1)
-    await muscle_repository.add_muscle_group(group2)
+async def test_get_muscles_by_zone_id(muscle_repository, test_session):
+    """Тест получения мышц по ID зоны."""
+    # Создаём две зоны
+    zone1 = MuscleZone(name="Zone 1")
+    zone2 = MuscleZone(name="Zone 2")
+    await muscle_repository.add_muscle_zone(zone1)
+    await muscle_repository.add_muscle_zone(zone2)
     await test_session.commit()
     
-    # Создаём мышцы в разных группах
-    muscle1 = Muscle(name="Muscle 1", group_id=group1.id)
-    muscle2 = Muscle(name="Muscle 2", group_id=group1.id)
-    muscle3 = Muscle(name="Muscle 3", group_id=group2.id)
+    # Создаём мышцы
+    muscle1 = Muscle(name="Muscle 1")
+    muscle2 = Muscle(name="Muscle 2")
+    muscle3 = Muscle(name="Muscle 3")
     
     await muscle_repository.add(muscle1)
     await muscle_repository.add(muscle2)
     await muscle_repository.add(muscle3)
     await test_session.commit()
     
-    # Получаем мышцы первой группы
-    group1_muscles = await muscle_repository.get_muscles_by_group_id(group1.id)
+    # Связываем мышцы с зонами
+    test_session.add(MuscleZoneMuscle(zone_id=zone1.id, muscle_id=muscle1.id))
+    test_session.add(MuscleZoneMuscle(zone_id=zone1.id, muscle_id=muscle2.id))
+    test_session.add(MuscleZoneMuscle(zone_id=zone2.id, muscle_id=muscle3.id))
+    await test_session.commit()
+    
+    # Получаем мышцы первой зоны
+    zone1_muscles = await muscle_repository.get_muscles_by_zone_id(zone1.id)
     
     # Проверяем
-    assert len(group1_muscles) == 2
-    muscle_ids = {m.id for m in group1_muscles}
+    assert len(zone1_muscles) == 2
+    muscle_ids = {m.id for m in zone1_muscles}
     assert muscle1.id in muscle_ids
     assert muscle2.id in muscle_ids
     assert muscle3.id not in muscle_ids
 
 
 @pytest.mark.integration
-async def test_get_all_muscle_groups(muscle_repository, test_session):
-    """Тест получения всех групп мышц."""
-    # Создаём несколько групп
-    group1 = MuscleGroup(name="Group 1")
-    group2 = MuscleGroup(name="Group 2")
-    group3 = MuscleGroup(name="Group 3")
+async def test_get_all_muscle_zones(muscle_repository, test_session):
+    """Тест получения всех зон."""
+    # Создаём несколько зон
+    zone1 = MuscleZone(name="Zone 1")
+    zone2 = MuscleZone(name="Zone 2")
+    zone3 = MuscleZone(name="Zone 3")
     
-    await muscle_repository.add_muscle_group(group1)
-    await muscle_repository.add_muscle_group(group2)
-    await muscle_repository.add_muscle_group(group3)
+    await muscle_repository.add_muscle_zone(zone1)
+    await muscle_repository.add_muscle_zone(zone2)
+    await muscle_repository.add_muscle_zone(zone3)
     await test_session.commit()
     
-    # Получаем все группы
-    all_groups = await muscle_repository.get_all_muscle_groups()
+    # Получаем все зоны
+    all_zones = await muscle_repository.get_all_muscle_zones()
     
     # Проверяем, что все группы получены (может быть больше из других тестов)
-    group_ids = {g.id for g in all_groups}
-    assert group1.id in group_ids
-    assert group2.id in group_ids
-    assert group3.id in group_ids
+    zone_ids = {z.id for z in all_zones}
+    assert zone1.id in zone_ids
+    assert zone2.id in zone_ids
+    assert zone3.id in zone_ids
 
 
 @pytest.mark.integration
-async def test_get_muscle_group_by_id(muscle_repository, test_session):
-    """Тест получения группы мышц по ID."""
-    # Создаём группу
-    group = MuscleGroup(name="Test Group")
-    await muscle_repository.add_muscle_group(group)
+async def test_get_muscle_zone_by_id(muscle_repository, test_session):
+    """Тест получения зоны по ID."""
+    # Создаём зону
+    zone = MuscleZone(name="Test Zone")
+    await muscle_repository.add_muscle_zone(zone)
     await test_session.commit()
     
     # Получаем по ID
-    retrieved_group = await muscle_repository.get_muscle_group_by_id(group.id)
-    assert retrieved_group is not None
-    assert retrieved_group.name == "Test Group"
+    retrieved_zone = await muscle_repository.get_muscle_zone_by_id(zone.id)
+    assert retrieved_zone is not None
+    assert retrieved_zone.name == "Test Zone"
     
-    # Проверяем несуществующую группу
-    nonexistent = await muscle_repository.get_muscle_group_by_id(999999)
+    # Проверяем несуществующую зону
+    nonexistent = await muscle_repository.get_muscle_zone_by_id(999999)
     assert nonexistent is None
 
 
 @pytest.mark.integration
-async def test_add_muscle_group(muscle_repository, test_session):
-    """Тест создания группы мышц."""
-    group = MuscleGroup(name="New Group")
-    created_group = await muscle_repository.add_muscle_group(group)
+async def test_add_muscle_zone(muscle_repository, test_session):
+    """Тест создания зоны."""
+    zone = MuscleZone(name="New Zone")
+    created_zone = await muscle_repository.add_muscle_zone(zone)
     await test_session.commit()
     
     # Проверяем
-    assert created_group.id is not None
-    assert created_group.name == "New Group"
+    assert created_zone.id is not None
+    assert created_zone.name == "New Zone"
     
     # Проверяем в БД
-    retrieved_group = await muscle_repository.get_muscle_group_by_id(created_group.id)
-    assert retrieved_group is not None
-    assert retrieved_group.name == "New Group"
+    retrieved_zone = await muscle_repository.get_muscle_zone_by_id(created_zone.id)
+    assert retrieved_zone is not None
+    assert retrieved_zone.name == "New Zone"
 
 
 @pytest.mark.integration

@@ -296,7 +296,7 @@ async def handle_machine_select(
     if last_set:
         weight = float(last_set.weight)
         reps = last_set.reps
-        failure = last_set.failure
+        failure = last_set.is_failure
     else:
         weight = 0.0
         reps = DEFAULT_REPS

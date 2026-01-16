@@ -53,6 +53,7 @@ class TestGoogleSheetsExportUseCase:
         now = datetime.now(timezone.utc)
         return User(
             id=123456789,
+            telegram_id=123456789,
             telegram_username="testuser",
             telegram_firstname="Test",
             telegram_lastname="User",
@@ -61,7 +62,7 @@ class TestGoogleSheetsExportUseCase:
             google_sheet_url="https://docs.google.com/spreadsheets/d/test_spreadsheet_id/edit",
             created_at=now,
             updated_at=now,
-            timezone="Europe/Berlin",
+            timezone="Europe/Moscow",
         )
 
     @pytest.fixture
@@ -173,13 +174,14 @@ class TestGoogleSheetsExportUseCase:
         now = datetime.now(timezone.utc)
         user_without_sheet = User(
             id=123456789,
+            telegram_id=123456789,
             telegram_username="testuser",
             is_registered=True,
             spreadsheet_id=None,
             google_sheet_url=None,
             created_at=now,
             updated_at=now,
-            timezone="Europe/Berlin",
+            timezone="Europe/Moscow",
         )
         mock_user_repository.get_by_id.return_value = user_without_sheet
 
