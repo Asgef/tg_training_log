@@ -155,12 +155,27 @@ class GoogleSheetsClient:
             )
             raise ValueError(f"Таблица с ID '{spreadsheet_id}' не найдена.")
         except gspread.exceptions.APIError as e:
+            error_code = (
+                getattr(e.response, "status_code", None)
+                if hasattr(e, "response")
+                else None
+            )
+            if error_code in (401, 403):
+                logger.warning(
+                    "Недостаточно прав для доступа к таблице",
+                    event_type="google_sheets_access_denied",
+                    spreadsheet_id=spreadsheet_id,
+                    error_code=error_code,
+                )
+                raise PermissionError(
+                    "Недостаточно прав для доступа к Google Sheets."
+                ) from e
             logger.error(
                 "Ошибка Google Sheets API при открытии таблицы",
                 event_type="google_sheets_api_error",
                 error_type="APIError",
                 spreadsheet_id=spreadsheet_id,
-                error_code=getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None,
+                error_code=error_code,
                 error=str(e),
                 exc_info=True,
             )
@@ -175,19 +190,35 @@ class GoogleSheetsClient:
             )
             raise RuntimeError(f"Ошибка при открытии таблицы {spreadsheet_id}: {e}")
 
+    def _normalize_header_row(self, values: List[str], total_cols: int) -> List[str]:
+        if len(values) >= total_cols:
+            return values[:total_cols]
+        return values + [""] * (total_cols - len(values))
+
     @retry_google_sheets_operation
     def get_or_create_worksheet(
-        self, spreadsheet: gspread.Spreadsheet, worksheet_name: str, headers: List[str]
+        self,
+        spreadsheet: gspread.Spreadsheet,
+        worksheet_name: str,
+        sheet_title: str,
+        headers_ru: List[str],
+        headers: List[str],
     ) -> gspread.Worksheet:
         try:
             worksheet = spreadsheet.worksheet(worksheet_name)
+            total_cols = len(headers)
+            title_row = self._normalize_header_row([sheet_title], total_cols)
+            headers_ru_row = self._normalize_header_row(headers_ru, total_cols)
+            headers_row = self._normalize_header_row(headers, total_cols)
             if not worksheet.row_values(1):
-                worksheet.insert_row(headers, 1)
+                worksheet.update([title_row, headers_ru_row, headers_row])
                 logger.info(
                     "Созданы заголовки в листе",
                     event_type="google_sheets_headers_created",
                     worksheet_name=worksheet_name,
                 )
+            else:
+                worksheet.update("A1", [title_row, headers_ru_row, headers_row])
             logger.debug(
                 "Получен/Создан лист",
                 event_type="google_sheets_worksheet_accessed",
@@ -196,9 +227,13 @@ class GoogleSheetsClient:
             return worksheet
         except gspread.exceptions.WorksheetNotFound:
             worksheet = spreadsheet.add_worksheet(
-                title=worksheet_name, rows=1, cols=len(headers)
+                title=worksheet_name, rows=3, cols=len(headers)
             )
-            worksheet.insert_row(headers, 1)
+            total_cols = len(headers)
+            title_row = self._normalize_header_row([sheet_title], total_cols)
+            headers_ru_row = self._normalize_header_row(headers_ru, total_cols)
+            headers_row = self._normalize_header_row(headers, total_cols)
+            worksheet.update([title_row, headers_ru_row, headers_row])
             logger.info(
                 "Лист создан с заголовками",
                 event_type="google_sheets_worksheet_created",
@@ -235,13 +270,15 @@ class GoogleSheetsClient:
         self,
         spreadsheet_id: str,
         worksheet_name: str,
-        data: List[List[Any]],
+        sheet_title: str,
+        headers_ru: List[str],
         headers: List[str],
+        data: List[List[Any]],
     ) -> None:
         try:
             spreadsheet = self.open_spreadsheet(spreadsheet_id)
             worksheet = self.get_or_create_worksheet(
-                spreadsheet, worksheet_name, headers
+                spreadsheet, worksheet_name, sheet_title, headers_ru, headers
             )
             worksheet.append_rows(data)
             logger.info(
@@ -279,16 +316,22 @@ class GoogleSheetsClient:
         self,
         spreadsheet_id: str,
         worksheet_name: str,
+        sheet_title: str,
+        headers_ru: List[str],
         df: pd.DataFrame,
         key_column: str,
     ) -> None:
         try:
             spreadsheet = self.open_spreadsheet(spreadsheet_id)
             worksheet = self.get_or_create_worksheet(
-                spreadsheet, worksheet_name, df.columns.tolist()
+                spreadsheet,
+                worksheet_name,
+                sheet_title,
+                headers_ru,
+                df.columns.tolist(),
             )
 
-            existing_data = worksheet.get_all_records()
+            existing_data = worksheet.get_all_records(head=3)
             existing_df = pd.DataFrame(existing_data)
 
             if not existing_df.empty and key_column in existing_df.columns:
@@ -312,7 +355,8 @@ class GoogleSheetsClient:
                 )
 
                 worksheet.update(
-                    [merged_df.columns.values.tolist()] + merged_df.values.tolist()
+                    "A3",
+                    [merged_df.columns.values.tolist()] + merged_df.values.tolist(),
                 )
                 logger.info(
                     "Обновлено/добавлено строк в Google Sheets",
@@ -324,7 +368,9 @@ class GoogleSheetsClient:
                 )
 
             else:
-                worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+                worksheet.update(
+                    "A3", [df.columns.values.tolist()] + df.values.tolist()
+                )
                 logger.info(
                     "Записаны новые строки в Google Sheets",
                     event_type="google_sheets_data_inserted",
@@ -340,6 +386,62 @@ class GoogleSheetsClient:
                 spreadsheet_id=spreadsheet_id,
                 worksheet_name=worksheet_name,
                 error_code=getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None,
+                error=str(e),
+                exc_info=True,
+            )
+            raise
+
+    @retry_google_sheets_operation
+    def replace_worksheet_data(
+        self,
+        spreadsheet_id: str,
+        worksheet_name: str,
+        sheet_title: str,
+        headers_ru: List[str],
+        headers: List[str],
+        data: List[List[Any]],
+    ) -> None:
+        """Полностью перезаписывает лист, сохраняя 3 строки заголовков."""
+        try:
+            spreadsheet = self.open_spreadsheet(spreadsheet_id)
+            worksheet = self.get_or_create_worksheet(
+                spreadsheet, worksheet_name, sheet_title, headers_ru, headers
+            )
+            total_cols = len(headers)
+            title_row = self._normalize_header_row([sheet_title], total_cols)
+            headers_ru_row = self._normalize_header_row(headers_ru, total_cols)
+            headers_row = self._normalize_header_row(headers, total_cols)
+            rows = [title_row, headers_ru_row, headers_row] + data
+            worksheet.clear()
+            worksheet.resize(rows=max(len(rows), 3), cols=total_cols)
+            worksheet.update(rows)
+            logger.info(
+                "Лист полностью перезаписан",
+                event_type="google_sheets_sheet_replaced",
+                spreadsheet_id=spreadsheet_id,
+                worksheet_name=worksheet_name,
+                rows_count=len(data),
+            )
+        except gspread.exceptions.APIError as e:
+            logger.error(
+                "Ошибка Google Sheets API при полной перезаписи листа",
+                event_type="google_sheets_api_error",
+                error_type="APIError",
+                spreadsheet_id=spreadsheet_id,
+                worksheet_name=worksheet_name,
+                error_code=getattr(e.response, "status_code", None)
+                if hasattr(e, "response")
+                else None,
+                error=str(e),
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Ошибка при полной перезаписи листа",
+                event_type="google_sheets_error",
+                spreadsheet_id=spreadsheet_id,
+                worksheet_name=worksheet_name,
                 error=str(e),
                 exc_info=True,
             )

@@ -11,6 +11,7 @@ from src.application.use_case_interfaces import IGoogleSheetsExportUseCase
 logger = structlog.get_logger(__name__)
 
 router = Router()
+SERVICE_ACCOUNT_EMAIL = "tg-training@tgtraining.iam.gserviceaccount.com"
 
 class GoogleSheetsStates(StatesGroup):
     waiting_for_sheet_url = State()
@@ -53,7 +54,7 @@ async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContex
             "1️⃣ Откройте вашу Google Таблицу в браузере.\n"
             "2️⃣ Нажмите кнопку \"Настроить доступ\" (Share) в правом верхнем углу.\n"
             "3️⃣ В поле \"Добавить людей и группы\" вставьте адрес сервисного аккаунта:\n"
-            "   `tg-training@tgtraining.iam.gserviceaccount.com`\n"
+            f"   `{SERVICE_ACCOUNT_EMAIL}`\n"
             "4️⃣ Выберите уровень доступа: \"Редактор\" (Editor).\n"
             "5️⃣ Нажмите \"Отправить\" (Send).\n"
             "6️⃣ Скопируйте URL таблицы из адресной строки браузера (формат: `https://docs.google.com/spreadsheets/d/...`) и отправьте его боту.\n\n"
@@ -138,14 +139,18 @@ async def export_data_to_sheets_callback(
             event_type="google_sheets_export_started",
             user_id=user_id,
         )
-        success = await google_sheets_export_use_case.export_data_to_sheets(user_id)
-        if success:
+        result = await google_sheets_export_use_case.export_data_to_sheets(user_id)
+        if result is not None:
             logger.info(
                 "Пользователь успешно экспортировал данные в Google Sheets",
                 event_type="google_sheets_export_completed",
                 user_id=user_id,
             )
-            await callback.message.edit_text("Данные успешно экспортированы в Google Sheets.")
+            await callback.message.edit_text(
+                "Данные успешно экспортированы в Google Sheets.\n"
+                f"LOG_SETS: добавлено {result.get('sets_added', 0)} строк.\n"
+                f"LOG_MUSCLES: добавлено {result.get('muscles_added', 0)} строк."
+            )
         else:
             logger.warning(
                 "Пользователь не смог экспортировать данные в Google Sheets",
@@ -154,6 +159,11 @@ async def export_data_to_sheets_callback(
                 reason="unknown",
             )
             await callback.message.edit_text("Не удалось экспортировать данные.")
+    except PermissionError:
+        await callback.message.edit_text(
+            "Нет доступа к таблице. Дайте доступ редактора сервисному аккаунту:\n"
+            f"`{SERVICE_ACCOUNT_EMAIL}`"
+        )
     except ValueError as e:
         logger.warning(
             "Ошибка валидации при экспорте Google Sheets",

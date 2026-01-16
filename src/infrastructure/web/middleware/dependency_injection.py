@@ -83,6 +83,7 @@ class DependencyInjectionMiddleware(BaseMiddleware):
             user_repository=user_repo,
             machine_repository=machine_repo,
             set_entry_repository=set_entry_repo,
+            muscle_repository=muscle_repo,
             google_sheets_client=google_sheets_client,
         )
         

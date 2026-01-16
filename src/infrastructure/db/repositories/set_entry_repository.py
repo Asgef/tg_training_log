@@ -6,7 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.application.repositories import ISetEntryRepository
-from src.domain.models import SetEntry, WorkoutSession, SetEntryZone, SetEntryMuscle
+from src.domain.models import (
+    SetEntry,
+    WorkoutSession,
+    SetEntryZone,
+    SetEntryMuscle,
+    Machine,
+    Muscle,
+    MuscleZone,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +254,134 @@ class SetEntryRepository(ISetEntryRepository):
         except SQLAlchemyError as e:
             logger.error(
                 f"SQLAlchemyError при удалении подходов для тренировки {session_id}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def get_sets_for_export(
+        self, user_id: int, min_set_id: Optional[int]
+    ) -> list[dict]:
+        """Возвращает подходы для выгрузки в LOG_SETS."""
+        try:
+            stmt = (
+                select(
+                    SetEntry.id.label("set_id"),
+                    SetEntry.created_at.label("performed_at"),
+                    SetEntry.session_id.label("session_id"),
+                    SetEntry.machine_id.label("machine_id"),
+                    Machine.name.label("machine_name"),
+                    SetEntry.weight.label("weight"),
+                    SetEntry.reps.label("reps"),
+                    SetEntry.is_failure.label("is_failure"),
+                )
+                .join(WorkoutSession, WorkoutSession.id == SetEntry.session_id)
+                .join(Machine, Machine.id == SetEntry.machine_id)
+                .where(WorkoutSession.user_id == user_id)
+                .order_by(SetEntry.id.asc())
+            )
+            if min_set_id is not None:
+                stmt = stmt.where(SetEntry.id > min_set_id)
+            result = await self.session.execute(stmt)
+            rows = result.mappings().all()
+            return [dict(row) for row in rows]
+        except SQLAlchemyError as e:
+            logger.error(
+                "SQLAlchemyError при выгрузке подходов пользователя %s: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Неожиданная ошибка при выгрузке подходов пользователя %s: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            raise
+
+    async def get_set_entry_muscles_for_export(
+        self, user_id: int, min_set_id: Optional[int]
+    ) -> list[dict]:
+        """Возвращает подходы по мышцам для LOG_MUSCLES."""
+        try:
+            stmt = (
+                select(
+                    SetEntry.id.label("set_id"),
+                    SetEntry.created_at.label("performed_at"),
+                    SetEntry.session_id.label("session_id"),
+                    SetEntry.machine_id.label("machine_id"),
+                    Machine.name.label("machine_name"),
+                    SetEntryMuscle.muscle_id.label("muscle_id"),
+                    Muscle.name.label("muscle_name"),
+                    SetEntry.weight.label("weight"),
+                    SetEntry.reps.label("reps"),
+                    SetEntry.is_failure.label("is_failure"),
+                )
+                .join(WorkoutSession, WorkoutSession.id == SetEntry.session_id)
+                .join(Machine, Machine.id == SetEntry.machine_id)
+                .join(SetEntryMuscle, SetEntryMuscle.set_entry_id == SetEntry.id)
+                .join(Muscle, Muscle.id == SetEntryMuscle.muscle_id)
+                .where(WorkoutSession.user_id == user_id)
+                .order_by(SetEntry.id.asc(), SetEntryMuscle.muscle_id.asc())
+            )
+            if min_set_id is not None:
+                stmt = stmt.where(SetEntry.id > min_set_id)
+            result = await self.session.execute(stmt)
+            rows = result.mappings().all()
+            return [dict(row) for row in rows]
+        except SQLAlchemyError as e:
+            logger.error(
+                "SQLAlchemyError при выгрузке подходов по мышцам пользователя %s: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Неожиданная ошибка при выгрузке подходов по мышцам пользователя %s: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            raise
+
+    async def get_set_entry_zone_snapshots_for_export(
+        self, user_id: int, min_set_id: Optional[int]
+    ) -> list[dict]:
+        """Возвращает снимки зон для подходов (set_entry_zones)."""
+        try:
+            stmt = (
+                select(
+                    SetEntryZone.set_entry_id.label("set_id"),
+                    MuscleZone.name.label("zone_name"),
+                )
+                .join(SetEntry, SetEntry.id == SetEntryZone.set_entry_id)
+                .join(WorkoutSession, WorkoutSession.id == SetEntry.session_id)
+                .join(MuscleZone, MuscleZone.id == SetEntryZone.zone_id)
+                .where(WorkoutSession.user_id == user_id)
+                .order_by(SetEntryZone.set_entry_id.asc(), MuscleZone.name.asc())
+            )
+            if min_set_id is not None:
+                stmt = stmt.where(SetEntry.id > min_set_id)
+            result = await self.session.execute(stmt)
+            rows = result.mappings().all()
+            return [dict(row) for row in rows]
+        except SQLAlchemyError as e:
+            logger.error(
+                "SQLAlchemyError при выгрузке snapshot зон пользователя %s: %s",
+                user_id,
+                e,
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Неожиданная ошибка при выгрузке snapshot зон пользователя %s: %s",
+                user_id,
+                e,
                 exc_info=True,
             )
             raise

@@ -186,7 +186,7 @@ class IGoogleSheetsExportUseCase(ABC):
         pass
 
     @abstractmethod
-    async def export_data_to_sheets(self, user_id: int) -> bool:
+    async def export_data_to_sheets(self, user_id: int) -> dict:
         """Экспортирует данные тренировок и тренажёров в Google Sheets."""
         pass
 

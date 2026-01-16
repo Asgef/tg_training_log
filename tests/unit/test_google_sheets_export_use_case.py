@@ -27,6 +27,11 @@ class TestGoogleSheetsExportUseCase:
         return AsyncMock()
 
     @pytest.fixture
+    def mock_muscle_repository(self):
+        """Создаёт мок MuscleRepository."""
+        return AsyncMock()
+
+    @pytest.fixture
     def mock_google_sheets_client(self):
         """Создаёт мок GoogleSheetsClient."""
         return MagicMock()
@@ -37,6 +42,7 @@ class TestGoogleSheetsExportUseCase:
         mock_user_repository,
         mock_machine_repository,
         mock_set_entry_repository,
+        mock_muscle_repository,
         mock_google_sheets_client,
     ):
         """Создаёт экземпляр GoogleSheetsExportUseCase с моками."""
@@ -44,6 +50,7 @@ class TestGoogleSheetsExportUseCase:
             user_repository=mock_user_repository,
             machine_repository=mock_machine_repository,
             set_entry_repository=mock_set_entry_repository,
+            muscle_repository=mock_muscle_repository,
             google_sheets_client=mock_google_sheets_client,
         )
 
@@ -76,6 +83,8 @@ class TestGoogleSheetsExportUseCase:
             is_archived=False,
             created_at=now,
             updated_at=now,
+            zones=[],
+            muscles=[],
         )
 
     async def test_setup_google_sheets_config_success(
@@ -129,6 +138,8 @@ class TestGoogleSheetsExportUseCase:
         mock_user_repository,
         mock_machine_repository,
         mock_google_sheets_client,
+        mock_set_entry_repository,
+        mock_muscle_repository,
         test_user,
         test_machine,
     ):
@@ -136,7 +147,38 @@ class TestGoogleSheetsExportUseCase:
         # Настраиваем моки
         mock_user_repository.get_by_id.return_value = test_user
         mock_machine_repository.get_user_machines.return_value = [test_machine]
-        mock_google_sheets_client.upsert_dataframe.return_value = None
+        mock_muscle_repository.get_all_muscle_zones.return_value = []
+        mock_muscle_repository.get_all_muscles.return_value = []
+        mock_muscle_repository.get_zone_muscle_links.return_value = []
+        mock_set_entry_repository.get_sets_for_export.return_value = [
+            {
+                "set_id": 1,
+                "performed_at": datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
+                "session_id": 10,
+                "machine_id": 1,
+                "machine_name": "Test Machine",
+                "weight": 50,
+                "reps": 10,
+                "is_failure": False,
+            }
+        ]
+        mock_set_entry_repository.get_set_entry_muscles_for_export.return_value = [
+            {
+                "set_id": 1,
+                "performed_at": datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
+                "session_id": 10,
+                "machine_id": 1,
+                "machine_name": "Test Machine",
+                "muscle_id": 5,
+                "muscle_name": "Biceps",
+                "weight": 50,
+                "reps": 10,
+                "is_failure": False,
+            }
+        ]
+        mock_set_entry_repository.get_set_entry_zone_snapshots_for_export.return_value = [
+            {"set_id": 1, "zone_name": "Arms"}
+        ]
 
         # Вызываем метод
         result = await google_sheets_export_use_case.export_data_to_sheets(
@@ -144,12 +186,13 @@ class TestGoogleSheetsExportUseCase:
         )
 
         # Проверяем результат
-        assert result is True
+        assert result == {"sets_added": 1, "muscles_added": 1}
         mock_user_repository.get_by_id.assert_called_once_with(123456789)
         mock_machine_repository.get_user_machines.assert_called_once_with(
             123456789, include_archived=True
         )
-        mock_google_sheets_client.upsert_dataframe.assert_called_once()
+        assert mock_google_sheets_client.replace_worksheet_data.call_count == 4
+        assert mock_google_sheets_client.append_data.call_count == 2
 
     async def test_export_data_to_sheets_user_not_found(
         self,
@@ -195,12 +238,20 @@ class TestGoogleSheetsExportUseCase:
         mock_user_repository,
         mock_machine_repository,
         mock_google_sheets_client,
+        mock_set_entry_repository,
+        mock_muscle_repository,
         test_user,
     ):
         """Тест экспорта данных, когда нет тренажёров."""
         # Настраиваем моки: нет тренажёров
         mock_user_repository.get_by_id.return_value = test_user
         mock_machine_repository.get_user_machines.return_value = []
+        mock_muscle_repository.get_all_muscle_zones.return_value = []
+        mock_muscle_repository.get_all_muscles.return_value = []
+        mock_muscle_repository.get_zone_muscle_links.return_value = []
+        mock_set_entry_repository.get_sets_for_export.return_value = []
+        mock_set_entry_repository.get_set_entry_muscles_for_export.return_value = []
+        mock_set_entry_repository.get_set_entry_zone_snapshots_for_export.return_value = []
 
         # Вызываем метод
         result = await google_sheets_export_use_case.export_data_to_sheets(
@@ -208,6 +259,6 @@ class TestGoogleSheetsExportUseCase:
         )
 
         # Проверяем результат
-        assert result is True
-        # upsert_dataframe не должен вызываться, если нет тренажёров
-        mock_google_sheets_client.upsert_dataframe.assert_not_called()
+        assert result == {"sets_added": 0, "muscles_added": 0}
+        assert mock_google_sheets_client.replace_worksheet_data.call_count == 4
+        mock_google_sheets_client.append_data.assert_not_called()

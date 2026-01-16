@@ -19,6 +19,7 @@ class User(Base):
     is_registered: Mapped[bool] = mapped_column(Boolean, default=False)
     google_sheet_url: Mapped[str | None] = mapped_column(Text)
     spreadsheet_id: Mapped[str | None] = mapped_column(Text)
+    last_exported_set_id: Mapped[int | None] = mapped_column(Integer)
     telegram_username: Mapped[str | None] = mapped_column(Text)
     telegram_firstname: Mapped[str | None] = mapped_column(Text)
     telegram_lastname: Mapped[str | None] = mapped_column(Text)

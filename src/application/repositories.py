@@ -131,6 +131,27 @@ class ISetEntryRepository(BaseRepository):
         """Удаляет все подходы по ID тренировки, возвращает количество удалённых."""
         pass
 
+    @abstractmethod
+    async def get_sets_for_export(
+        self, user_id: int, min_set_id: Optional[int]
+    ) -> List[dict]:
+        """Возвращает подходы для выгрузки в LOG_SETS."""
+        pass
+
+    @abstractmethod
+    async def get_set_entry_muscles_for_export(
+        self, user_id: int, min_set_id: Optional[int]
+    ) -> List[dict]:
+        """Возвращает подходы по мышцам для LOG_MUSCLES."""
+        pass
+
+    @abstractmethod
+    async def get_set_entry_zone_snapshots_for_export(
+        self, user_id: int, min_set_id: Optional[int]
+    ) -> List[dict]:
+        """Возвращает снимки зон для подходов (set_entry_zones)."""
+        pass
+
 
 class IMuscleRepository(BaseRepository):
     @abstractmethod
@@ -143,6 +164,11 @@ class IMuscleRepository(BaseRepository):
 
     @abstractmethod
     async def get_muscles_by_zone_id(self, zone_id: int) -> List["Muscle"]:
+        pass
+
+    @abstractmethod
+    async def get_zone_muscle_links(self) -> List[dict]:
+        """Возвращает связи зона↔мышца для REF_ZONE_MUSCLES."""
         pass
 
 

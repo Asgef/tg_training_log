@@ -173,6 +173,38 @@ class MuscleRepository(IMuscleRepository, IMuscleZoneRepository):
                 exc_info=True,
             )
             raise
+
+    async def get_zone_muscle_links(self) -> List[dict]:
+        """Возвращает связи зона↔мышца для REF_ZONE_MUSCLES."""
+        try:
+            stmt = (
+                select(
+                    MuscleZone.id.label("zone_id"),
+                    MuscleZone.name.label("zone_name"),
+                    Muscle.id.label("muscle_id"),
+                    Muscle.name.label("muscle_name"),
+                )
+                .join(MuscleZoneMuscle, MuscleZoneMuscle.zone_id == MuscleZone.id)
+                .join(Muscle, Muscle.id == MuscleZoneMuscle.muscle_id)
+                .order_by(MuscleZone.id.asc(), Muscle.id.asc())
+            )
+            result = await self.session.execute(stmt)
+            rows = result.mappings().all()
+            return [dict(row) for row in rows]
+        except SQLAlchemyError as e:
+            logger.error(
+                "SQLAlchemyError при получении связей зона↔мышца: %s",
+                e,
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Неожиданная ошибка при получении связей зона↔мышца: %s",
+                e,
+                exc_info=True,
+            )
+            raise
         except Exception as e:
             logger.error(
                 f"Неожиданная ошибка в get_muscles_by_zone_id для зоны {zone_id}: {e}",

@@ -12,6 +12,9 @@ class UserDTO(BaseModel):
     is_registered: bool = Field(default=False, description="Статус регистрации")
     google_sheet_url: Optional[str] = Field(None, description="URL Google таблицы")
     spreadsheet_id: Optional[str] = Field(None, description="ID Google таблицы")
+    last_exported_set_id: Optional[int] = Field(
+        None, description="Последний выгруженный set_id"
+    )
     telegram_username: Optional[str] = Field(None, description="Telegram username")
     telegram_firstname: Optional[str] = Field(None, description="Telegram имя")
     telegram_lastname: Optional[str] = Field(None, description="Telegram фамилия")
