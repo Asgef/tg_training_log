@@ -16,6 +16,18 @@ from src.infrastructure.web.handlers.machine.keyboards import (
 logger = logging.getLogger(__name__)
 router = Router()
 
+async def _get_zone_muscle_ids(
+    machine_management_use_case: IMachineManagementUseCase,
+    zone_ids: list[int],
+) -> list[int]:
+    if not zone_ids:
+        return []
+    muscle_ids: set[int] = set()
+    for zone_id in zone_ids:
+        muscles = await machine_management_use_case.get_muscles_by_zone_id(zone_id)
+        muscle_ids.update([m.id for m in muscles])
+    return list(muscle_ids)
+
 
 @router.callback_query(F.data.startswith("edit_machine_menu_"))
 async def edit_machine_callback(
@@ -159,10 +171,15 @@ async def edit_machine_muscles_callback(
         logger.debug(
             f"Текущие зоны/мышцы тренажёра {machine_id}: {current_zone_ids}/{current_muscle_ids}"
         )
+        zone_muscle_ids = await _get_zone_muscle_ids(
+            machine_management_use_case, current_zone_ids
+        )
+        manual_muscle_ids = list(set(current_muscle_ids) - set(zone_muscle_ids))
         await state.update_data(
             editing_machine_id=machine_id,
             selected_zone_ids=current_zone_ids.copy(),
-            selected_muscle_ids=current_muscle_ids.copy()
+            selected_muscle_ids=current_muscle_ids.copy(),
+            manual_muscle_ids=manual_muscle_ids,
         )
         
         # Получаем зоны
@@ -254,7 +271,7 @@ async def edit_select_zone_callback(
         machine_id = data.get("editing_machine_id")
         selected_zone_ids = data.get("selected_zone_ids", [])
         selected_zone_ids = data.get("selected_zone_ids", [])
-        selected_muscle_ids = data.get("selected_muscle_ids", [])
+        manual_muscle_ids = data.get("manual_muscle_ids", [])
         
         if not machine_id:
             await callback.message.edit_text("Ошибка: ID тренажера не найден.")
@@ -272,9 +289,14 @@ async def edit_select_zone_callback(
             selected_zone_ids.append(zone_id)
             action_text = f"Зона '{zone_name}' добавлена"
 
+        zone_muscle_ids = await _get_zone_muscle_ids(
+            machine_management_use_case, selected_zone_ids
+        )
+        selected_muscle_ids = list(set(zone_muscle_ids) | set(manual_muscle_ids))
         await state.update_data(
             selected_zone_ids=selected_zone_ids,
             selected_muscle_ids=selected_muscle_ids,
+            manual_muscle_ids=manual_muscle_ids,
         )
         await callback.answer(action_text)
         
@@ -418,16 +440,24 @@ async def toggle_edit_muscle_callback(
             await callback.answer("Ошибка: ID тренажера не найден.", show_alert=True)
             return
         
-        selected_muscle_ids = data.get("selected_muscle_ids", [])
+        selected_zone_ids = data.get("selected_zone_ids", [])
+        manual_muscle_ids = data.get("manual_muscle_ids", [])
         
-        if muscle_id in selected_muscle_ids:
-            selected_muscle_ids.remove(muscle_id)
+        if muscle_id in manual_muscle_ids:
+            manual_muscle_ids.remove(muscle_id)
             action = "удалена"
         else:
-            selected_muscle_ids.append(muscle_id)
+            manual_muscle_ids.append(muscle_id)
             action = "добавлена"
         
-        await state.update_data(selected_muscle_ids=selected_muscle_ids)
+        zone_muscle_ids = await _get_zone_muscle_ids(
+            machine_management_use_case, selected_zone_ids
+        )
+        selected_muscle_ids = list(set(zone_muscle_ids) | set(manual_muscle_ids))
+        await state.update_data(
+            selected_muscle_ids=selected_muscle_ids,
+            manual_muscle_ids=manual_muscle_ids,
+        )
         
         muscle = await machine_management_use_case.get_muscle_by_id(muscle_id)
         muscle_name = muscle.name if muscle else f"Мышца {muscle_id}"
@@ -454,6 +484,7 @@ async def save_machine_muscles_callback(
     try:
         data = await state.get_data()
         machine_id = data.get("editing_machine_id")
+        selected_zone_ids = data.get("selected_zone_ids", [])
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
         if not machine_id:
