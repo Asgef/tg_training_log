@@ -30,7 +30,7 @@ async def _get_zone_muscle_ids(
     return list(muscle_ids)
 
 
-@router.callback_query(F.data == "add_machine")
+@router.callback_query(F.data == "add_machine_manual")
 async def add_machine_callback(
     callback: CallbackQuery,
     state: FSMContext,

@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from src.configs.config import config
 from src.infrastructure.db.repositories.user_repository import UserRepository
 from src.infrastructure.db.repositories.machine_repository import MachineRepository
+from src.infrastructure.db.repositories.machine_library_repository import (
+    MachineLibraryRepository,
+)
 from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
 from src.infrastructure.db.repositories.workout_session_repository import WorkoutSessionRepository
 from src.infrastructure.db.repositories.set_entry_repository import SetEntryRepository
@@ -15,6 +18,7 @@ from src.infrastructure.db.repositories.processed_update_repository import Proce
 from src.application.use_cases.registration import RegistrationUseCase
 from src.application.use_cases.workout import WorkoutUseCase
 from src.application.use_cases.machine_management import MachineManagementUseCase
+from src.application.use_cases.machine_library import MachineLibraryUseCase
 from src.application.use_cases.google_sheets_export import GoogleSheetsExportUseCase
 from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
 
@@ -55,6 +59,10 @@ class Container(containers.DeclarativeContainer):
         MachineRepository,
     )
 
+    machine_library_repository = providers.Factory(
+        MachineLibraryRepository,
+    )
+
     muscle_repository = providers.Factory(
         MuscleRepository,
     )
@@ -87,6 +95,10 @@ class Container(containers.DeclarativeContainer):
 
     machine_management_use_case = providers.Factory(
         MachineManagementUseCase,
+    )
+
+    machine_library_use_case = providers.Factory(
+        MachineLibraryUseCase,
     )
 
     google_sheets_export_use_case = providers.Factory(

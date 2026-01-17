@@ -40,16 +40,16 @@ def build_set_params_keyboard() -> InlineKeyboardMarkup:
     """Строит клавиатуру изменения параметров подхода."""
     keyboard = [
         [
-            InlineKeyboardButton(text="-10", callback_data="set_weight:-10"),
+            InlineKeyboardButton(text="-1", callback_data="set_weight:-1"),
             InlineKeyboardButton(text="-5", callback_data="set_weight:-5"),
             InlineKeyboardButton(text="+5", callback_data="set_weight:+5"),
-            InlineKeyboardButton(text="+10", callback_data="set_weight:+10"),
+            InlineKeyboardButton(text="+1", callback_data="set_weight:+1"),
         ],
         [InlineKeyboardButton(text="Ввести вручную", callback_data="set_manual_weight")],
         [
-            InlineKeyboardButton(text="8", callback_data="set_reps:8"),
-            InlineKeyboardButton(text="10", callback_data="set_reps:10"),
-            InlineKeyboardButton(text="12", callback_data="set_reps:12"),
+            InlineKeyboardButton(text="-1", callback_data="set_reps:-1"),
+            InlineKeyboardButton(text="-5", callback_data="set_reps:-5"),
+            InlineKeyboardButton(text="+5", callback_data="set_reps:+5"),
             InlineKeyboardButton(text="+1", callback_data="set_reps:+1"),
         ],
         [InlineKeyboardButton(text="Ввести вручную", callback_data="set_manual_reps")],

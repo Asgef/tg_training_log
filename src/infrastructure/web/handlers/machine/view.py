@@ -27,7 +27,8 @@ async def cmd_machines(
     )
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Добавить тренажер", callback_data="add_machine")],
+        [InlineKeyboardButton(text="Добавить из библиотеки", callback_data="add_machine_from_library")],
+        [InlineKeyboardButton(text="Создать вручную", callback_data="add_machine_manual")],
         [InlineKeyboardButton(text="Мои тренажеры", callback_data="list_machines")]
     ])
     await message.answer("Управление тренажерами:", reply_markup=keyboard)
@@ -65,6 +66,17 @@ async def list_machines_callback(
         user_id=user_id,
         machines_count=len(machines),
     )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "machines_menu")
+@BaseHandler.error_handler(default_error_message="Произошла ошибка при открытии меню тренажеров.")
+async def machines_menu_callback(
+    callback: CallbackQuery,
+    machine_management_use_case: IMachineManagementUseCase,
+) -> None:
+    """Возврат к меню управления тренажёрами."""
+    await cmd_machines(callback.message, machine_management_use_case)
     await callback.answer()
 
 

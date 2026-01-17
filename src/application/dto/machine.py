@@ -63,6 +63,9 @@ class MachineDTO(BaseModel):
     name: str = Field(..., description="Название тренажёра")
     photo_file_id: Optional[str] = Field(None, description="Telegram file_id фото")
     is_archived: bool = Field(default=False, description="Статус архивации")
+    library_machine_id: Optional[int] = Field(
+        None, description="ID библиотечного тренажёра"
+    )
     zones: List[MuscleZoneDTO] = Field(default_factory=list, description="Список зон")
     muscles: List[MuscleDTO] = Field(default_factory=list, description="Список мышц")
     created_at: datetime = Field(..., description="Дата создания")

@@ -2,6 +2,7 @@
 
 from .user import UserDTO
 from .machine import MachineDTO, MuscleDTO, MuscleZoneDTO
+from .machine_library import MachineLibraryDTO, MachineLibraryItemDTO
 from .workout import WorkoutSessionDTO
 from .set_entry import SetEntryDTO
 from .input import (
@@ -16,6 +17,8 @@ from .converters import (
     user_from_dto,
     machine_to_dto,
     machine_from_dto,
+    machine_library_to_dto,
+    machine_library_to_item_dto,
     muscle_to_dto,
     muscle_zone_to_dto,
     workout_session_to_dto,
@@ -29,6 +32,8 @@ __all__ = [
     "MachineDTO",
     "MuscleDTO",
     "MuscleZoneDTO",
+    "MachineLibraryDTO",
+    "MachineLibraryItemDTO",
     "WorkoutSessionDTO",
     "SetEntryDTO",
     "SetEntryInputDTO",
@@ -40,6 +45,8 @@ __all__ = [
     "user_from_dto",
     "machine_to_dto",
     "machine_from_dto",
+    "machine_library_to_dto",
+    "machine_library_to_item_dto",
     "muscle_to_dto",
     "muscle_zone_to_dto",
     "workout_session_to_dto",

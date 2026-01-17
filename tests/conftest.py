@@ -13,6 +13,9 @@ from sqlalchemy import event
 from src.domain.models import Base
 from src.infrastructure.db.repositories.user_repository import UserRepository
 from src.infrastructure.db.repositories.machine_repository import MachineRepository
+from src.infrastructure.db.repositories.machine_library_repository import (
+    MachineLibraryRepository,
+)
 from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
 from src.infrastructure.db.repositories.workout_session_repository import WorkoutSessionRepository
 from src.infrastructure.db.repositories.set_entry_repository import SetEntryRepository
@@ -103,6 +106,14 @@ async def user_repository(test_session: AsyncSession) -> UserRepository:
 async def machine_repository(test_session: AsyncSession) -> MachineRepository:
     """Fixture для MachineRepository."""
     return MachineRepository(session=test_session)
+
+
+@pytest.fixture
+async def machine_library_repository(
+    test_session: AsyncSession,
+) -> MachineLibraryRepository:
+    """Fixture для MachineLibraryRepository."""
+    return MachineLibraryRepository(session=test_session)
 
 
 @pytest.fixture

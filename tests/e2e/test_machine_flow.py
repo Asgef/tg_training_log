@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 
-from src.domain.models import User, MuscleZone, Muscle, Machine
+from src.domain.models import User, MuscleZone, Muscle, Machine, MachineLibrary
 from src.infrastructure.web.handlers.machine.states import MachineStates
 
 from tests.e2e.conftest import create_callback_query_update
@@ -120,3 +120,49 @@ async def test_edit_machine_saves_zones_and_muscles(
     assert updated is not None
     assert {z.id for z in updated.zones} == {zone_new.id}
     assert {m.id for m in updated.muscles} == {muscle_new.id}
+
+
+@pytest.mark.e2e
+async def test_add_machine_from_library_copies_tags(
+    bot, dispatcher, container, test_session, test_user_id
+):
+    """Тест добавления тренажёра из библиотеки."""
+    user = User(
+        id=test_user_id,
+        telegram_id=test_user_id,
+        telegram_username="test_user",
+        telegram_firstname="Test",
+        telegram_lastname="User",
+        is_registered=True,
+    )
+    await container.user_repository().add(user)
+
+    zone = MuscleZone(name="Test Zone")
+    muscle = Muscle(name="Test Muscle")
+    await container.muscle_repository().add_muscle_zone(zone)
+    await container.muscle_repository().add(muscle)
+    await test_session.commit()
+
+    library_machine = MachineLibrary(name_ru="Bench Press")
+    library_machine.zones.append(zone)
+    library_machine.muscles.append(muscle)
+    await container.machine_library_repository().add(library_machine)
+    await test_session.commit()
+
+    update = create_callback_query_update(
+        f"add_library_machine_{library_machine.id}",
+        user_id=test_user_id,
+    )
+    bot.edit_message_text = AsyncMock()
+    bot.answer_callback_query = AsyncMock()
+
+    await dispatcher.feed_update(bot, update)
+
+    test_session.expire_all()
+    created = await container.machine_repository().get_user_machine_by_name(
+        test_user_id, "Bench Press"
+    )
+    assert created is not None
+    assert created.library_machine_id == library_machine.id
+    assert {z.id for z in created.zones} == {zone.id}
+    assert {m.id for m in created.muscles} == {muscle.id}

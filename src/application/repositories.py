@@ -5,6 +5,7 @@ from typing import List, Optional, Any
 from src.domain.models import (
     User,
     Machine,
+    MachineLibrary,
     WorkoutSession,
     SetEntry,
     Muscle,
@@ -78,6 +79,26 @@ class IMachineRepository(BaseRepository):
     async def update_machine_zones(
         self, machine_id: int, zone_ids: List[int]
     ) -> None:
+        pass
+
+
+class IMachineLibraryRepository(BaseRepository):
+    @abstractmethod
+    async def list_library_machines(
+        self, limit: int = 20, offset: int = 0
+    ) -> List["MachineLibrary"]:
+        pass
+
+    @abstractmethod
+    async def search_library_machines(
+        self, query: str, limit: int = 20, offset: int = 0
+    ) -> List["MachineLibrary"]:
+        pass
+
+    @abstractmethod
+    async def get_library_machine_by_id(
+        self, machine_library_id: int
+    ) -> Optional["MachineLibrary"]:
         pass
 
 

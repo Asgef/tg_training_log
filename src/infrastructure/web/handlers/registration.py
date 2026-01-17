@@ -129,7 +129,7 @@ async def process_register_request(callback: CallbackQuery, state: FSMContext) -
             event_type="registration_request_started",
             user_id=callback.from_user.id,
         )
-        await callback.message.edit_text("Пожалуйста, расскажите немного о себе, чтобы администратор мог одобрить вашу заявку.")
+        await callback.message.edit_text("Пожалуйста, представьтесь и расскажите немного о себе. Если вы понравитесь администратору то он вас одобрит.")
         await state.set_state(RegistrationStates.waiting_for_description)
         await callback.answer()
     except Exception as e:

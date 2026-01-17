@@ -70,6 +70,9 @@ def container(test_session) -> Container:
     # Создаём контейнер с тестовой сессией
     from src.infrastructure.db.repositories.user_repository import UserRepository
     from src.infrastructure.db.repositories.machine_repository import MachineRepository
+    from src.infrastructure.db.repositories.machine_library_repository import (
+        MachineLibraryRepository,
+    )
     from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
     from src.infrastructure.db.repositories.workout_session_repository import WorkoutSessionRepository
     from src.infrastructure.db.repositories.set_entry_repository import SetEntryRepository
@@ -77,6 +80,7 @@ def container(test_session) -> Container:
     from src.application.use_cases.registration import RegistrationUseCase
     from src.application.use_cases.workout import WorkoutUseCase
     from src.application.use_cases.machine_management import MachineManagementUseCase
+    from src.application.use_cases.machine_library import MachineLibraryUseCase
     from src.application.use_cases.google_sheets_export import GoogleSheetsExportUseCase
     from unittest.mock import AsyncMock
     
@@ -84,6 +88,7 @@ def container(test_session) -> Container:
     user_repo = UserRepository(session=test_session)
     machine_repo = MachineRepository(session=test_session)
     muscle_repo = MuscleRepository(session=test_session)
+    machine_library_repo = MachineLibraryRepository(session=test_session)
     workout_repo = WorkoutSessionRepository(session=test_session)
     set_entry_repo = SetEntryRepository(session=test_session)
     processed_update_repo = ProcessedUpdateRepository(session=test_session)
@@ -99,6 +104,10 @@ def container(test_session) -> Container:
         machine_repository=machine_repo,
         muscle_repository=muscle_repo,
     )
+    machine_library_uc = MachineLibraryUseCase(
+        machine_library_repository=machine_library_repo,
+        machine_repository=machine_repo,
+    )
     google_sheets_uc = GoogleSheetsExportUseCase(
         user_repository=user_repo,
         machine_repository=machine_repo,
@@ -111,6 +120,7 @@ def container(test_session) -> Container:
     mock_container = MagicMock(spec=Container)
     mock_container.user_repository.return_value = user_repo
     mock_container.machine_repository.return_value = machine_repo
+    mock_container.machine_library_repository.return_value = machine_library_repo
     mock_container.muscle_repository.return_value = muscle_repo
     mock_container.workout_session_repository.return_value = workout_repo
     mock_container.set_entry_repository.return_value = set_entry_repo
@@ -118,6 +128,7 @@ def container(test_session) -> Container:
     mock_container.registration_use_case.return_value = registration_uc
     mock_container.workout_use_case.return_value = workout_uc
     mock_container.machine_management_use_case.return_value = machine_uc
+    mock_container.machine_library_use_case.return_value = machine_library_uc
     mock_container.google_sheets_export_use_case.return_value = google_sheets_uc
     mock_container.session_factory.return_value = lambda: test_session
     

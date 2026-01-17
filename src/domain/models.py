@@ -101,6 +101,9 @@ class Machine(Base):
     name: Mapped[str] = mapped_column(Text)
     photo_file_id: Mapped[str | None] = mapped_column(Text)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    library_machine_id: Mapped[int | None] = mapped_column(
+        ForeignKey("machine_library.id")
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -113,6 +116,9 @@ class Machine(Base):
     )
     zones: Mapped[List["MuscleZone"]] = relationship(
         "MuscleZone", secondary="machine_zones", backref="machines", lazy="selectin"
+    )
+    library_machine: Mapped["MachineLibrary | None"] = relationship(
+        "MachineLibrary", back_populates="machines"
     )
 
     @validates("name")
@@ -141,6 +147,96 @@ class MachineZone(Base):
     __tablename__ = "machine_zones"
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"), primary_key=True)
     zone_id: Mapped[int] = mapped_column(ForeignKey("muscle_zones.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+class MachineLibrary(Base):
+    __tablename__ = "machine_library"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name_ru: Mapped[str] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    aliases: Mapped[List["MachineLibraryAlias"]] = relationship(
+        "MachineLibraryAlias", back_populates="machine_library", cascade="all, delete-orphan"
+    )
+    zones: Mapped[List["MuscleZone"]] = relationship(
+        "MuscleZone", secondary="machine_library_zones", lazy="selectin"
+    )
+    muscles: Mapped[List["Muscle"]] = relationship(
+        "Muscle", secondary="machine_library_muscles", lazy="selectin"
+    )
+    machines: Mapped[List["Machine"]] = relationship(
+        "Machine", back_populates="library_machine"
+    )
+
+    @validates("name_ru")
+    def validate_name_ru(self, key: str, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Название тренажёра не может быть пустым")
+        if len(value.strip()) > MAX_NAME_LENGTH:
+            raise ValueError(f"Название тренажёра не может быть длиннее {MAX_NAME_LENGTH} символов")
+        return value.strip()
+
+
+class MachineLibraryAlias(Base):
+    __tablename__ = "machine_library_aliases"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    machine_library_id: Mapped[int] = mapped_column(ForeignKey("machine_library.id"))
+    alias: Mapped[str] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    machine_library: Mapped["MachineLibrary"] = relationship(
+        "MachineLibrary", back_populates="aliases"
+    )
+
+    @validates("alias")
+    def validate_alias(self, key: str, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Алиас не может быть пустым")
+        if len(value.strip()) > MAX_NAME_LENGTH:
+            raise ValueError(f"Алиас не может быть длиннее {MAX_NAME_LENGTH} символов")
+        return value.strip()
+
+
+class MachineLibraryZone(Base):
+    __tablename__ = "machine_library_zones"
+    machine_library_id: Mapped[int] = mapped_column(
+        ForeignKey("machine_library.id"), primary_key=True
+    )
+    zone_id: Mapped[int] = mapped_column(
+        ForeignKey("muscle_zones.id"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+class MachineLibraryMuscle(Base):
+    __tablename__ = "machine_library_muscles"
+    machine_library_id: Mapped[int] = mapped_column(
+        ForeignKey("machine_library.id"), primary_key=True
+    )
+    muscle_id: Mapped[int] = mapped_column(
+        ForeignKey("muscles.id"), primary_key=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

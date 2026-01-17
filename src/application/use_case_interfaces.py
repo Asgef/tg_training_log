@@ -5,6 +5,8 @@ from typing import Optional, List
 from src.application.dto import (
     UserDTO,
     MachineDTO,
+    MachineLibraryDTO,
+    MachineLibraryItemDTO,
     WorkoutSessionDTO,
     SetEntryDTO,
     MuscleDTO,
@@ -176,6 +178,36 @@ class IMachineManagementUseCase(ABC):
     @abstractmethod
     async def get_muscle_by_id(self, muscle_id: int) -> Optional[MuscleDTO]:
         """Получает мышцу по ID."""
+        pass
+
+
+class IMachineLibraryUseCase(ABC):
+    @abstractmethod
+    async def list_library_machines(
+        self, limit: int = 20, offset: int = 0
+    ) -> List[MachineLibraryItemDTO]:
+        """Список библиотечных тренажёров."""
+        pass
+
+    @abstractmethod
+    async def search_library_machines(
+        self, query: str, limit: int = 20, offset: int = 0
+    ) -> List[MachineLibraryItemDTO]:
+        """Поиск по библиотеке."""
+        pass
+
+    @abstractmethod
+    async def get_library_machine_details(
+        self, machine_library_id: int
+    ) -> Optional[MachineLibraryDTO]:
+        """Карточка библиотечного тренажёра."""
+        pass
+
+    @abstractmethod
+    async def add_machine_from_library(
+        self, user_id: int, machine_library_id: int
+    ) -> MachineDTO:
+        """Создаёт пользовательский тренажёр на основе библиотеки."""
         pass
 
 

@@ -10,3 +10,4 @@ class MachineStates(StatesGroup):
     waiting_for_edit_name = State()
     waiting_for_edit_photo = State()
     waiting_for_edit_muscle_selection = State()
+    waiting_for_library_search_query = State()

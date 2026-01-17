@@ -3,6 +3,7 @@ from typing import Optional, List
 from src.domain.models import (
     User,
     Machine,
+    MachineLibrary,
     Muscle,
     MuscleZone,
     WorkoutSession,
@@ -10,6 +11,7 @@ from src.domain.models import (
 )
 from .user import UserDTO
 from .machine import MachineDTO, MuscleDTO, MuscleZoneDTO
+from .machine_library import MachineLibraryDTO, MachineLibraryItemDTO
 from .workout import WorkoutSessionDTO
 from .set_entry import SetEntryDTO
 
@@ -85,10 +87,41 @@ def machine_to_dto(machine: Machine) -> MachineDTO:
         name=machine.name,
         photo_file_id=machine.photo_file_id,
         is_archived=machine.is_archived,
+        library_machine_id=machine.library_machine_id,
         zones=zones_dto,
         muscles=muscles_dto,
         created_at=machine.created_at,
         updated_at=machine.updated_at,
+    )
+
+
+def machine_library_to_item_dto(
+    machine_library: MachineLibrary,
+) -> MachineLibraryItemDTO:
+    """Конвертирует библиотечный тренажёр в DTO списка."""
+    aliases = [alias.alias for alias in machine_library.aliases] if machine_library.aliases else []
+    return MachineLibraryItemDTO(
+        id=machine_library.id,
+        name_ru=machine_library.name_ru,
+        aliases=aliases,
+    )
+
+
+def machine_library_to_dto(
+    machine_library: MachineLibrary,
+) -> MachineLibraryDTO:
+    """Конвертирует библиотечный тренажёр в DTO карточки."""
+    aliases = [alias.alias for alias in machine_library.aliases] if machine_library.aliases else []
+    zones_dto = [muscle_zone_to_dto(zone) for zone in machine_library.zones] if machine_library.zones else []
+    muscles_dto = [muscle_to_dto(muscle) for muscle in machine_library.muscles] if machine_library.muscles else []
+    return MachineLibraryDTO(
+        id=machine_library.id,
+        name_ru=machine_library.name_ru,
+        aliases=aliases,
+        zones=zones_dto,
+        muscles=muscles_dto,
+        created_at=machine_library.created_at,
+        updated_at=machine_library.updated_at,
     )
 
 
@@ -104,6 +137,7 @@ def machine_from_dto(dto: MachineDTO) -> Machine:
     machine.name = dto.name
     machine.photo_file_id = dto.photo_file_id
     machine.is_archived = dto.is_archived
+    machine.library_machine_id = dto.library_machine_id
     machine.created_at = dto.created_at
     machine.updated_at = dto.updated_at
     # Мышцы нужно устанавливать отдельно через relationship

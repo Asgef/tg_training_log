@@ -3,6 +3,7 @@ from typing import List
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
+from src.application.dto import MachineLibraryItemDTO
 from src.domain.models import MuscleZone, Muscle, Machine
 
 
@@ -270,3 +271,31 @@ def build_individual_muscles_keyboard(
     return builder.build_individual_muscles_keyboard(
         all_muscles, selected_muscle_ids, machine_id, is_creation
     )
+
+
+def build_machine_library_list_keyboard(
+    machines: List[MachineLibraryItemDTO],
+) -> InlineKeyboardMarkup:
+    """Клавиатура со списком библиотечных тренажёров."""
+    keyboard_buttons = []
+    for machine in machines:
+        keyboard_buttons.append(
+            [InlineKeyboardButton(text=machine.name_ru, callback_data=f"library_machine_{machine.id}")]
+        )
+    keyboard_buttons.append(
+        [InlineKeyboardButton(text="🔍 Новый поиск", callback_data="library_search_again")]
+    )
+    keyboard_buttons.append(
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="machines_menu")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+
+def build_machine_library_details_keyboard(
+    machine_library_id: int,
+) -> InlineKeyboardMarkup:
+    """Клавиатура карточки библиотечного тренажёра."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Добавить себе", callback_data=f"add_library_machine_{machine_library_id}")],
+        [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="library_back_to_results")],
+    ])

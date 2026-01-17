@@ -54,6 +54,7 @@ class DependencyInjectionMiddleware(BaseMiddleware):
         # Создаём репозитории с текущей сессией
         user_repo = self.container.user_repository(session=session)
         machine_repo = self.container.machine_repository(session=session)
+        machine_library_repo = self.container.machine_library_repository(session=session)
         muscle_repo = self.container.muscle_repository(session=session)
         workout_session_repo = self.container.workout_session_repository(session=session)
         set_entry_repo = self.container.set_entry_repository(session=session)
@@ -78,6 +79,10 @@ class DependencyInjectionMiddleware(BaseMiddleware):
         data["machine_management_use_case"] = self.container.machine_management_use_case(
             machine_repository=machine_repo,
             muscle_repository=muscle_repo,
+        )
+        data["machine_library_use_case"] = self.container.machine_library_use_case(
+            machine_library_repository=machine_library_repo,
+            machine_repository=machine_repo,
         )
         data["google_sheets_export_use_case"] = self.container.google_sheets_export_use_case(
             user_repository=user_repo,
