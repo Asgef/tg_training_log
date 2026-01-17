@@ -10,6 +10,8 @@ Base = declarative_base()
 MAX_NAME_LENGTH = 255
 MIN_WEIGHT = 0.01
 MIN_REPS = 1
+MIN_RIR = 0
+MAX_RIR = 5
 
 
 class User(Base):
@@ -266,7 +268,7 @@ class SetEntry(Base):
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id"))
     weight: Mapped[float] = mapped_column(Numeric(6, 2))
     reps: Mapped[int] = mapped_column(Integer)
-    is_failure: Mapped[bool] = mapped_column(Boolean, default=False)
+    rir: Mapped[int] = mapped_column(Integer, default=2)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -293,6 +295,13 @@ class SetEntry(Base):
         """Валидация количества повторений."""
         if value < MIN_REPS:
             raise ValueError(f"Количество повторений должно быть не меньше {MIN_REPS}")
+        return value
+
+    @validates("rir")
+    def validate_rir(self, key: str, value: int) -> int:
+        """Валидация RIR."""
+        if value < MIN_RIR or value > MAX_RIR:
+            raise ValueError(f"RIR должен быть в диапазоне {MIN_RIR}..{MAX_RIR}")
         return value
 
 

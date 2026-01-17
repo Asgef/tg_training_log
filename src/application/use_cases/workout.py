@@ -85,7 +85,7 @@ class WorkoutUseCase(IWorkoutUseCase):
             return None
 
     async def record_set(
-        self, user_id: int, machine_id: int, weight: float, reps: int, failure: bool
+        self, user_id: int, machine_id: int, weight: float, reps: int, rir: int
     ) -> Optional[SetEntryDTO]:
         try:
             active_session = (
@@ -135,7 +135,7 @@ class WorkoutUseCase(IWorkoutUseCase):
                 machine_id=machine_id,
                 weight=weight,
                 reps=reps,
-                is_failure=failure,
+                rir=rir,
             )
             await self.set_entry_repository.add_set_entry(new_set_entry)
             zone_ids = [zone.id for zone in machine.zones] if machine.zones else []

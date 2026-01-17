@@ -67,7 +67,7 @@
 7. `machine_name`
 8. `weight_kg`
 9. `reps`
-10. `is_failure` (TRUE/FALSE)
+10. `rir` (0..5)
 11. `volume` (weight_kg * reps)
 
 ### 4.4 Источник данных (БД)
@@ -79,7 +79,7 @@
 * `machine_name` ← `machines.name`
 * `weight_kg` ← `set_entries.weight`
 * `reps` ← `set_entries.reps`
-* `is_failure` ← `set_entries.is_failure`
+* `rir` ← `set_entries.rir`
 * `volume` ← вычисляемое
 
 ---
@@ -110,7 +110,7 @@
 9. `muscle_name`
 10. `weight_kg`
 11. `reps`
-12. `is_failure` (TRUE/FALSE)
+12. `rir` (0..5)
 13. `volume` (weight_kg * reps)
 
 > Примечание: зоны в `LOG_MUSCLES` **не обязательны** — они легко подтягиваются через справочник.
@@ -125,7 +125,7 @@
 * `machine_name` ← `machines.name`
 * `muscle_id` ← `set_entry_muscles.muscle_id`
 * `muscle_name` ← `muscles.name`
-* `weight/reps/is_failure` ← `set_entries.*`
+* `weight/reps/rir` ← `set_entries.*`
 * `volume` ← вычисляемое
 
 ### 5.5 Требование стабильности истории

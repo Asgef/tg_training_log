@@ -221,7 +221,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         row["machine_name"],
                         weight,
                         reps,
-                        "TRUE" if row["is_failure"] else "FALSE",
+                        int(row["rir"]),
                         weight * reps,
                     ]
                 )
@@ -247,7 +247,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         row["muscle_name"],
                         weight,
                         reps,
-                        "TRUE" if row["is_failure"] else "FALSE",
+                        int(row["rir"]),
                         weight * reps,
                         ", ".join(sorted(set(zones_snapshot))) if zones_snapshot else "",
                     ]
@@ -268,7 +268,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         "Название тренажёра",
                         "Вес, кг",
                         "Повторения",
-                        "Отказ",
+                        "RIR",
                         "Объём",
                     ],
                     [
@@ -281,7 +281,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         "machine_name",
                         "weight_kg",
                         "reps",
-                        "is_failure",
+                        "rir",
                         "volume",
                     ],
                     log_sets_rows,
@@ -304,7 +304,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         "Название мышцы",
                         "Вес, кг",
                         "Повторения",
-                        "Отказ",
+                        "RIR",
                         "Объём",
                         "Зоны (снимок)",
                     ],
@@ -320,7 +320,7 @@ class GoogleSheetsExportUseCase(IGoogleSheetsExportUseCase):
                         "muscle_name",
                         "weight_kg",
                         "reps",
-                        "is_failure",
+                        "rir",
                         "volume",
                         "zone_names_snapshot",
                     ],

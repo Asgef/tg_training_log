@@ -143,7 +143,7 @@ async def test_end_workout_flow(
         machine_id=machine.id,
         weight=100.0,
         reps=10,
-        is_failure=False,
+        rir=2,
     )
     await container.set_entry_repository().add(set_entry)
     await test_session.commit()

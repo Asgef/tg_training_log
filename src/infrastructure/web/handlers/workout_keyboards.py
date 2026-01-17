@@ -54,8 +54,14 @@ def build_set_params_keyboard() -> InlineKeyboardMarkup:
         ],
         [InlineKeyboardButton(text="Ввести вручную", callback_data="set_manual_reps")],
         [
-            InlineKeyboardButton(text="✅ Да", callback_data="set_failure:1"),
-            InlineKeyboardButton(text="❌ Нет", callback_data="set_failure:0"),
+            InlineKeyboardButton(text="RIR 0", callback_data="set_rir:0"),
+            InlineKeyboardButton(text="RIR 1", callback_data="set_rir:1"),
+            InlineKeyboardButton(text="RIR 2", callback_data="set_rir:2"),
+        ],
+        [
+            InlineKeyboardButton(text="RIR 3", callback_data="set_rir:3"),
+            InlineKeyboardButton(text="RIR 4", callback_data="set_rir:4"),
+            InlineKeyboardButton(text="RIR 5", callback_data="set_rir:5"),
         ],
         [
             InlineKeyboardButton(text="✅ Сохранить", callback_data="set_save"),

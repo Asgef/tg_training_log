@@ -76,7 +76,7 @@ async def test_smoke_full_user_journey(
         machine_id=machine.id,
         weight=50,
         reps=10,
-        is_failure=False,
+        rir=2,
     )
     await container.set_entry_repository().add(set_entry)
     await test_session.commit()

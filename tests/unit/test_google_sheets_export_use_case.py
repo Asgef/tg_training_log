@@ -159,7 +159,7 @@ class TestGoogleSheetsExportUseCase:
                 "machine_name": "Test Machine",
                 "weight": 50,
                 "reps": 10,
-                "is_failure": False,
+                "rir": 2,
             }
         ]
         mock_set_entry_repository.get_set_entry_muscles_for_export.return_value = [
@@ -173,7 +173,7 @@ class TestGoogleSheetsExportUseCase:
                 "muscle_name": "Biceps",
                 "weight": 50,
                 "reps": 10,
-                "is_failure": False,
+                "rir": 2,
             }
         ]
         mock_set_entry_repository.get_set_entry_zone_snapshots_for_export.return_value = [

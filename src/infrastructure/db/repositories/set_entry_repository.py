@@ -272,7 +272,7 @@ class SetEntryRepository(ISetEntryRepository):
                     Machine.name.label("machine_name"),
                     SetEntry.weight.label("weight"),
                     SetEntry.reps.label("reps"),
-                    SetEntry.is_failure.label("is_failure"),
+                    SetEntry.rir.label("rir"),
                 )
                 .join(WorkoutSession, WorkoutSession.id == SetEntry.session_id)
                 .join(Machine, Machine.id == SetEntry.machine_id)
@@ -317,7 +317,7 @@ class SetEntryRepository(ISetEntryRepository):
                     Muscle.name.label("muscle_name"),
                     SetEntry.weight.label("weight"),
                     SetEntry.reps.label("reps"),
-                    SetEntry.is_failure.label("is_failure"),
+                    SetEntry.rir.label("rir"),
                 )
                 .join(WorkoutSession, WorkoutSession.id == SetEntry.session_id)
                 .join(Machine, Machine.id == SetEntry.machine_id)

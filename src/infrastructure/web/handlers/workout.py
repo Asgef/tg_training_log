@@ -29,7 +29,7 @@ class WorkoutStates(StatesGroup):
 
 RECENT_MACHINES_LIMIT = 5
 DEFAULT_REPS = 8
-DEFAULT_FAILURE = False
+DEFAULT_RIR = 2
 
 
 def _format_weight(weight: float) -> str:
@@ -38,14 +38,14 @@ def _format_weight(weight: float) -> str:
     return f"{weight:.2f}".rstrip("0").rstrip(".")
 
 
-def _build_set_params_text(weight: float, reps: int, failure: bool) -> str:
+def _build_set_params_text(weight: float, reps: int, rir: int) -> str:
     lines = [
         "📝 Укажи параметры подхода:",
         "🟢 Тренировка активна — подход будет сохранён в текущую сессию.",
         "",
         f"💪 Вес: {_format_weight(weight)} кг",
         f"🔁 Повторы: {reps}",
-        f"⚠️ Отказ: {'Да' if failure else 'Нет'}",
+        f"🧠 RIR: {rir}",
     ]
     return "\n".join(lines)
 
@@ -296,11 +296,11 @@ async def handle_machine_select(
     if last_set:
         weight = float(last_set.weight)
         reps = last_set.reps
-        failure = last_set.is_failure
+        rir = last_set.rir
     else:
         weight = 0.0
         reps = DEFAULT_REPS
-        failure = DEFAULT_FAILURE
+        rir = DEFAULT_RIR
 
     await state.set_state(WorkoutStates.editing_set_params)
     await state.update_data(
@@ -308,15 +308,15 @@ async def handle_machine_select(
         machine_name=machine.name,
         weight=weight,
         reps=reps,
-        failure=failure,
+        rir=rir,
         default_weight=weight,
         default_reps=reps,
-        default_failure=failure,
+        default_rir=rir,
         form_message_id=callback.message.message_id,
     )
 
     await callback.message.edit_text(
-        _build_set_params_text(weight, reps, failure),
+        _build_set_params_text(weight, reps, rir),
         reply_markup=build_set_params_keyboard(),
     )
     await callback.answer()
@@ -336,7 +336,7 @@ async def handle_weight_change(callback: CallbackQuery, state: FSMContext) -> No
     new_weight = max(0.0, round(current_weight + delta, 2))
     await state.update_data(weight=new_weight)
     await callback.message.edit_text(
-        _build_set_params_text(new_weight, data.get("reps", DEFAULT_REPS), data.get("failure", False)),
+        _build_set_params_text(new_weight, data.get("reps", DEFAULT_REPS), data.get("rir", DEFAULT_RIR)),
         reply_markup=build_set_params_keyboard(),
     )
     await callback.answer()
@@ -370,7 +370,7 @@ async def handle_manual_weight_input(message: Message, state: FSMContext) -> Non
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=message_id,
-            text=_build_set_params_text(weight, data.get("reps", DEFAULT_REPS), data.get("failure", False)),
+            text=_build_set_params_text(weight, data.get("reps", DEFAULT_REPS), data.get("rir", DEFAULT_RIR)),
             reply_markup=build_set_params_keyboard(),
         )
 
@@ -393,7 +393,7 @@ async def handle_reps_change(callback: CallbackQuery, state: FSMContext) -> None
 
     await state.update_data(reps=reps)
     await callback.message.edit_text(
-        _build_set_params_text(data.get("weight", 0.0), reps, data.get("failure", False)),
+        _build_set_params_text(data.get("weight", 0.0), reps, data.get("rir", DEFAULT_RIR)),
         reply_markup=build_set_params_keyboard(),
     )
     await callback.answer()
@@ -426,25 +426,28 @@ async def handle_manual_reps_input(message: Message, state: FSMContext) -> None:
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=message_id,
-            text=_build_set_params_text(data.get("weight", 0.0), reps, data.get("failure", False)),
+            text=_build_set_params_text(data.get("weight", 0.0), reps, data.get("rir", DEFAULT_RIR)),
             reply_markup=build_set_params_keyboard(),
         )
 
 
-@router.callback_query(F.data.startswith("set_failure:"), WorkoutStates.editing_set_params)
-async def handle_failure_change(callback: CallbackQuery, state: FSMContext) -> None:
-    """Изменяет статус отказа."""
+@router.callback_query(F.data.startswith("set_rir:"), WorkoutStates.editing_set_params)
+async def handle_rir_change(callback: CallbackQuery, state: FSMContext) -> None:
+    """Изменяет значение RIR."""
     data = await state.get_data()
     try:
-        failure_value = int(callback.data.split(":")[-1])
+        rir_value = int(callback.data.split(":")[-1])
     except ValueError:
-        await callback.answer("Некорректное значение отказа.", show_alert=True)
+        await callback.answer("Некорректное значение RIR.", show_alert=True)
         return
 
-    failure = bool(failure_value)
-    await state.update_data(failure=failure)
+    if rir_value < 0 or rir_value > 5:
+        await callback.answer("RIR должен быть в диапазоне 0..5.", show_alert=True)
+        return
+
+    await state.update_data(rir=rir_value)
     await callback.message.edit_text(
-        _build_set_params_text(data.get("weight", 0.0), data.get("reps", DEFAULT_REPS), failure),
+        _build_set_params_text(data.get("weight", 0.0), data.get("reps", DEFAULT_REPS), rir_value),
         reply_markup=build_set_params_keyboard(),
     )
     await callback.answer()
@@ -456,10 +459,10 @@ async def handle_set_reset(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     weight = float(data.get("default_weight", 0.0))
     reps = int(data.get("default_reps", DEFAULT_REPS))
-    failure = bool(data.get("default_failure", DEFAULT_FAILURE))
-    await state.update_data(weight=weight, reps=reps, failure=failure)
+    rir = int(data.get("default_rir", DEFAULT_RIR))
+    await state.update_data(weight=weight, reps=reps, rir=rir)
     await callback.message.edit_text(
-        _build_set_params_text(weight, reps, failure),
+        _build_set_params_text(weight, reps, rir),
         reply_markup=build_set_params_keyboard(),
     )
     await callback.answer()
@@ -485,14 +488,14 @@ async def handle_set_save(
     machine_id = data.get("machine_id")
     weight = float(data.get("weight", 0.0))
     reps = int(data.get("reps", 0))
-    failure = bool(data.get("failure", False))
+    rir = int(data.get("rir", DEFAULT_RIR))
 
     try:
         set_input = SetEntryInputDTO(
             machine_id=machine_id,
             weight=weight,
             reps=reps,
-            failure=failure,
+            rir=rir,
         )
     except ValidationError as e:
         error_messages = "; ".join([err["msg"] for err in e.errors()])
@@ -505,7 +508,7 @@ async def handle_set_save(
             set_input.machine_id,
             set_input.weight,
             set_input.reps,
-            set_input.failure,
+            set_input.rir,
         )
     except ValueError as e:
         await callback.answer(str(e), show_alert=True)
@@ -518,7 +521,7 @@ async def handle_set_save(
     machine_name = data.get("machine_name") or f"ID {set_input.machine_id}"
     await state.clear()
     await callback.message.edit_text(
-        f"✅ Подход записан: {machine_name} — {_format_weight(set_input.weight)} кг × {set_input.reps}, отказ: {'Да' if set_input.failure else 'Нет'}."
+        f"✅ Подход записан: {machine_name} — {_format_weight(set_input.weight)} кг × {set_input.reps}, RIR: {set_input.rir}."
     )
     await callback.answer()
 

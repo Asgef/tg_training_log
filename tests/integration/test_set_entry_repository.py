@@ -37,7 +37,7 @@ async def test_create_and_get_set_entry(
         machine_id=machine.id,
         weight=100.0,
         reps=10,
-        is_failure=False,
+        rir=2,
     )
     created_entry = await set_entry_repository.add(set_entry)
     await test_session.commit()
@@ -48,7 +48,7 @@ async def test_create_and_get_set_entry(
     assert created_entry.machine_id == machine.id
     assert created_entry.weight == 100.0
     assert created_entry.reps == 10
-    assert created_entry.is_failure is False
+    assert created_entry.rir == 2
     
     # Получаем по ID
     retrieved_entry = await set_entry_repository.get_by_id(created_entry.id)
@@ -80,7 +80,7 @@ async def test_update_set_entry(
         machine_id=machine.id,
         weight=100.0,
         reps=10,
-        is_failure=False,
+        rir=2,
     )
     await set_entry_repository.add(set_entry)
     await test_session.commit()
@@ -88,20 +88,20 @@ async def test_update_set_entry(
     # Обновляем
     set_entry.weight = 120.0
     set_entry.reps = 8
-    set_entry.is_failure = True
+    set_entry.rir = 0
     updated_entry = await set_entry_repository.update(set_entry)
     await test_session.commit()
     
     # Проверяем
     assert updated_entry.weight == 120.0
     assert updated_entry.reps == 8
-    assert updated_entry.is_failure is True
+    assert updated_entry.rir == 0
     
     # Проверяем в БД
     retrieved_entry = await set_entry_repository.get_by_id(set_entry.id)
     assert retrieved_entry.weight == 120.0
     assert retrieved_entry.reps == 8
-    assert retrieved_entry.is_failure is True
+    assert retrieved_entry.rir == 0
 
 
 @pytest.mark.integration
@@ -239,7 +239,7 @@ async def test_multiple_set_entries_for_session(
 async def test_set_entry_with_failure(
     set_entry_repository, workout_session_repository, machine_repository, test_user_data, test_session
 ):
-    """Тест создания подхода с is_failure=True."""
+    """Тест создания подхода с rir=0."""
     # Создаём пользователя, тренажёр и тренировку
     user = User(**test_user_data)
     test_session.add(user)
@@ -252,23 +252,23 @@ async def test_set_entry_with_failure(
     workout = await workout_session_repository.start_session(test_user_data["id"])
     await test_session.commit()
     
-    # Создаём подход с is_failure
+    # Создаём подход с rir
     set_entry = SetEntry(
         session_id=workout.id,
         machine_id=machine.id,
         weight=100.0,
         reps=10,
-        is_failure=True,
+        rir=0,
     )
     created_entry = await set_entry_repository.add(set_entry)
     await test_session.commit()
     
     # Проверяем
-    assert created_entry.is_failure is True
+    assert created_entry.rir == 0
     
     # Проверяем в БД
     retrieved_entry = await set_entry_repository.get_by_id(created_entry.id)
-    assert retrieved_entry.is_failure is True
+    assert retrieved_entry.rir == 0
 
 
 @pytest.mark.integration
@@ -305,7 +305,7 @@ async def test_add_set_entry_snapshots(
         machine_id=machine.id,
         weight=100.0,
         reps=10,
-        is_failure=False,
+        rir=2,
     )
     created_entry = await set_entry_repository.add(set_entry)
     await test_session.commit()

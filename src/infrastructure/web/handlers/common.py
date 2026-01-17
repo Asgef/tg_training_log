@@ -1,12 +1,20 @@
 """Handler для общих команд (Google Sheets и т.д.)."""
+import asyncio
 import structlog
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.application.use_case_interfaces import IGoogleSheetsExportUseCase
+from src.application.use_cases.google_sheets_export import GoogleSheetsExportUseCase
+from src.infrastructure.db.repositories.machine_repository import MachineRepository
+from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
+from src.infrastructure.db.repositories.set_entry_repository import SetEntryRepository
+from src.infrastructure.db.repositories.user_repository import UserRepository
+from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
 
 logger = structlog.get_logger(__name__)
 
@@ -128,61 +136,87 @@ async def process_sheet_url(
 @router.callback_query(F.data == "export_data_to_sheets")
 async def export_data_to_sheets_callback(
     callback: CallbackQuery,
-    google_sheets_export_use_case: IGoogleSheetsExportUseCase,
+    db_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """Обработчик экспорта данных в Google Sheets."""
     user_id = callback.from_user.id
-    await callback.message.edit_text("Начинаю экспорт данных в Google Sheets...")
-    try:
-        logger.info(
-            "Пользователь инициировал экспорт данных в Google Sheets",
-            event_type="google_sheets_export_started",
-            user_id=user_id,
-        )
-        result = await google_sheets_export_use_case.export_data_to_sheets(user_id)
-        if result is not None:
+    await callback.message.edit_text(
+        "Экспорт запущен. Сообщу, когда данные будут переданы в Google Таблицу."
+    )
+    await callback.answer()
+
+    async def _run_export() -> None:
+        try:
             logger.info(
-                "Пользователь успешно экспортировал данные в Google Sheets",
-                event_type="google_sheets_export_completed",
+                "Пользователь инициировал экспорт данных в Google Sheets",
+                event_type="google_sheets_export_started",
                 user_id=user_id,
             )
-            await callback.message.edit_text(
-                "Данные успешно экспортированы в Google Sheets.\n"
-                f"LOG_SETS: добавлено {result.get('sets_added', 0)} строк.\n"
-                f"LOG_MUSCLES: добавлено {result.get('muscles_added', 0)} строк."
+            async with db_session_factory() as session:
+                user_repo = UserRepository(session=session)
+                machine_repo = MachineRepository(session=session)
+                set_entry_repo = SetEntryRepository(session=session)
+                muscle_repo = MuscleRepository(session=session)
+                google_sheets_client = GoogleSheetsClient()
+                use_case = GoogleSheetsExportUseCase(
+                    user_repository=user_repo,
+                    machine_repository=machine_repo,
+                    set_entry_repository=set_entry_repo,
+                    muscle_repository=muscle_repo,
+                    google_sheets_client=google_sheets_client,
+                )
+                try:
+                    result = await use_case.export_data_to_sheets(user_id)
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                    raise
+
+            if result is not None:
+                logger.info(
+                    "Пользователь успешно экспортировал данные в Google Sheets",
+                    event_type="google_sheets_export_completed",
+                    user_id=user_id,
+                )
+                await callback.message.answer(
+                    "Данные переданы в Google Таблицу.\n"
+                    f"LOG_SETS: добавлено {result.get('sets_added', 0)} строк.\n"
+                    f"LOG_MUSCLES: добавлено {result.get('muscles_added', 0)} строк."
+                )
+            else:
+                logger.warning(
+                    "Пользователь не смог экспортировать данные в Google Sheets",
+                    event_type="google_sheets_export_failed",
+                    user_id=user_id,
+                    reason="unknown",
+                )
+                await callback.message.answer("Не удалось передать данные в Google Таблицу.")
+        except PermissionError:
+            await callback.message.answer(
+                "Нет доступа к таблице. Дайте доступ редактора сервисному аккаунту:\n"
+                f"`{SERVICE_ACCOUNT_EMAIL}`"
             )
-        else:
+        except ValueError as e:
             logger.warning(
-                "Пользователь не смог экспортировать данные в Google Sheets",
-                event_type="google_sheets_export_failed",
+                "Ошибка валидации при экспорте Google Sheets",
+                event_type="google_sheets_export_validation_error",
                 user_id=user_id,
-                reason="unknown",
+                error=str(e),
             )
-            await callback.message.edit_text("Не удалось экспортировать данные.")
-    except PermissionError:
-        await callback.message.edit_text(
-            "Нет доступа к таблице. Дайте доступ редактора сервисному аккаунту:\n"
-            f"`{SERVICE_ACCOUNT_EMAIL}`"
-        )
-    except ValueError as e:
-        logger.warning(
-            "Ошибка валидации при экспорте Google Sheets",
-            event_type="google_sheets_export_validation_error",
-            user_id=user_id,
-            error=str(e),
-        )
-        await callback.message.edit_text(f"Ошибка экспорта: {e}")
-    except Exception as e:
-        logger.error(
-            "Неожиданная ошибка в export_data_to_sheets_callback",
-            event_type="google_sheets_export_error",
-            user_id=user_id,
-            error=str(e),
-            exc_info=True,
-        )
-        await callback.message.edit_text(f"Произошла непредвиденная ошибка при экспорте: {e}")
-    finally:
-        await callback.answer()
+            await callback.message.answer(f"Ошибка экспорта: {e}")
+        except Exception as e:
+            logger.error(
+                "Неожиданная ошибка в export_data_to_sheets_callback",
+                event_type="google_sheets_export_error",
+                user_id=user_id,
+                error=str(e),
+                exc_info=True,
+            )
+            await callback.message.answer(
+                f"Произошла непредвиденная ошибка при экспорте: {e}"
+            )
+
+    asyncio.create_task(_run_export())
 
 
 # Обработчик кнопки меню

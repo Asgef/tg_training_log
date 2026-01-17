@@ -12,7 +12,7 @@ class SetEntryInputDTO(BaseModel):
     machine_id: int = Field(..., gt=0, description="ID тренажёра")
     weight: float = Field(..., gt=0, description="Вес в килограммах")
     reps: int = Field(..., gt=0, description="Количество повторений")
-    failure: bool = Field(default=False, description="Был ли отказ")
+    rir: int = Field(default=2, description="Reps In Reserve (0..5)")
 
     @field_validator("weight")
     @classmethod
@@ -28,6 +28,14 @@ class SetEntryInputDTO(BaseModel):
         """Валидация количества повторений."""
         if v <= 0:
             raise ValueError("Количество повторений должно быть больше 0")
+        return v
+
+    @field_validator("rir")
+    @classmethod
+    def validate_rir(cls, v: int) -> int:
+        """Валидация RIR."""
+        if v < 0 or v > 5:
+            raise ValueError("RIR должен быть в диапазоне 0..5")
         return v
 
 

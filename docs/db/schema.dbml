@@ -220,7 +220,7 @@ Table set_entries {
 
   weight numeric(6,2) [not null]  // 9999.99 хватит с запасом
   reps int [not null]
-  is_failure boolean [not null, default: false]
+  rir int [not null, default: 2, note: "0..5 (0 = отказ)"]
 
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
@@ -230,6 +230,8 @@ Table set_entries {
     (machine_id)
     (created_at)
   }
+
+  Note: "CHECK (rir >= 0 AND rir <= 5)"
 }
 
 /* -----------------------

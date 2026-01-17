@@ -207,7 +207,7 @@ class TestWorkoutUseCase:
             machine_id=1,
             weight=100.0,
             reps=10,
-            failure=False,
+            rir=2,
         )
 
         # Проверяем результат
@@ -236,7 +236,7 @@ class TestWorkoutUseCase:
             machine_id=1,
             weight=100.0,
             reps=10,
-            failure=False,
+            rir=2,
         )
 
         # Проверяем результат
@@ -263,7 +263,7 @@ class TestWorkoutUseCase:
                 machine_id=999,
                 weight=100.0,
                 reps=10,
-                failure=False,
+            rir=2,
             )
 
     async def test_record_set_machine_belongs_to_other_user(
@@ -296,7 +296,7 @@ class TestWorkoutUseCase:
                 machine_id=1,
                 weight=100.0,
                 reps=10,
-                failure=False,
+            rir=2,
             )
 
     async def test_record_set_machine_archived(
@@ -329,7 +329,7 @@ class TestWorkoutUseCase:
                 machine_id=1,
                 weight=100.0,
                 reps=10,
-                failure=False,
+            rir=2,
             )
 
     async def test_get_active_workout_session_success(
@@ -398,7 +398,7 @@ class TestWorkoutUseCase:
             machine_id=5,
             weight=80.0,
             reps=8,
-            is_failure=False,
+            rir=2,
             created_at=now,
             updated_at=now,
         )

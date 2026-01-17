@@ -61,7 +61,7 @@ class IWorkoutUseCase(ABC):
 
     @abstractmethod
     async def record_set(
-        self, user_id: int, machine_id: int, weight: float, reps: int, failure: bool
+        self, user_id: int, machine_id: int, weight: float, reps: int, rir: int
     ) -> Optional[SetEntryDTO]:
         """Записывает подход для активной тренировки."""
         pass

@@ -180,7 +180,7 @@ def set_entry_to_dto(set_entry: SetEntry) -> SetEntryDTO:
         machine_id=set_entry.machine_id,
         weight=float(set_entry.weight),
         reps=set_entry.reps,
-        is_failure=set_entry.is_failure,
+        rir=set_entry.rir,
         created_at=set_entry.created_at,
         updated_at=set_entry.updated_at,
     )
@@ -198,7 +198,7 @@ def set_entry_from_dto(dto: SetEntryDTO) -> SetEntry:
     set_entry.machine_id = dto.machine_id
     set_entry.weight = dto.weight
     set_entry.reps = dto.reps
-    set_entry.is_failure = dto.is_failure
+    set_entry.rir = dto.rir
     set_entry.created_at = dto.created_at
     set_entry.updated_at = dto.updated_at
     return set_entry

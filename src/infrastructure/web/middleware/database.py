@@ -47,6 +47,7 @@ class DatabaseMiddleware(BaseMiddleware):
         async with self.session_factory() as session:
             # Инъектируем сессию в data
             data["db_session"] = session
+            data["db_session_factory"] = self.session_factory
             
             try:
                 result = await handler(event, data)
