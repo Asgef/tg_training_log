@@ -15,7 +15,8 @@ services:
     restart: always
 
   app:
-    build: .
+    build:
+      dockerfile: Dockerfile
     container_name: tg_training_log_app
     env_file:
       - .env
@@ -23,9 +24,10 @@ services:
       - postgres
     restart: always
     volumes:
-      - .:/app
-      - uv_cache:/root/.cache/uv
+      - ./src:/app/src
+      - ./logs:/app/logs
+      - ./tgtraining-69d93acc8e17.json:/app/tgtraining-69d93acc8e17.json:ro
 
 volumes:
   postgres_data:
-  uv_cache:
+

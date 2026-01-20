@@ -38,17 +38,45 @@ _storage_instance: Optional[MemoryStorage] = None
 
 def _run_migrations_sync(database_url: str) -> None:
     """Запускает Alembic upgrade до head."""
-    alembic_ini = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
-    alembic_cfg = AlembicConfig(alembic_ini)
-    alembic_cfg.set_main_option("sqlalchemy.url", database_url)
-    command.upgrade(alembic_cfg, "head")
+    try:
+        logger.debug(f"Инициализация Alembic конфигурации...")
+        alembic_ini = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+        if not os.path.exists(alembic_ini):
+            raise FileNotFoundError(f"Alembic конфигурационный файл не найден: {alembic_ini}")
+        
+        logger.debug(f"Загрузка конфигурации из {alembic_ini}")
+        alembic_cfg = AlembicConfig(alembic_ini)
+        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+        
+        logger.debug(f"Запуск команды upgrade до head...")
+        command.upgrade(alembic_cfg, "head")
+        logger.debug("Alembic upgrade выполнен успешно")
+    except Exception as e:
+        logger.error(
+            "Ошибка при выполнении миграций Alembic",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            alembic_ini=alembic_ini if 'alembic_ini' in locals() else None,
+            database_url=database_url[:50] + "..." if len(database_url) > 50 else database_url,
+            exc_info=True
+        )
+        raise
 
 
 async def run_migrations(database_url: str) -> None:
     """Запускает миграции в отдельном потоке, чтобы не блокировать loop."""
-    logger.info("Запуск Alembic миграций...")
-    await asyncio.to_thread(_run_migrations_sync, database_url)
-    logger.info("Alembic миграции завершены")
+    logger.info("Запуск Alembic миграций...", database_url=database_url[:50] + "..." if len(database_url) > 50 else database_url)
+    try:
+        await asyncio.to_thread(_run_migrations_sync, database_url)
+        logger.info("Alembic миграции завершены успешно")
+    except Exception as e:
+        logger.exception(
+            "Критическая ошибка при выполнении миграций",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True
+        )
+        raise
 
 
 async def graceful_shutdown() -> None:
@@ -131,7 +159,7 @@ def setup_signal_handlers() -> None:
     # Регистрируем обработчики для SIGTERM и SIGINT
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    logger.info("Обработчики сигналов зарегистрированы (SIGTERM, SIGINT)")
+    logger.debug("Обработчики сигналов зарегистрированы (SIGTERM, SIGINT)")
 
 
 async def main() -> None:

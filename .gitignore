@@ -27,3 +27,4 @@ target/
 # Docker
 .dockerignore
 coverage.xml
+logs/*
