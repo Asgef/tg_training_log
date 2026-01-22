@@ -15,8 +15,8 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 
 # Импорт модулей проекта
-from src.configs.logging_config import setup_logging
 from src.configs.config import config
+from src.configs.logging_config import setup_logging
 from src.container import Container
 from src.infrastructure.web.handlers import registration, workout, machine, common
 from src.infrastructure.web.middlewares import RegistrationCheckMiddleware  # Из middlewares.py файла
@@ -26,8 +26,14 @@ from src.infrastructure.web.middleware.dependency_injection import DependencyInj
 from src.infrastructure.web.middleware.idempotency import IdempotencyMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.error_handling import ErrorHandlingMiddleware  # Из middleware/ папки
 
-# Настройка логирования
-setup_logging()
+# Настройка логирования из конфига
+setup_logging(
+    log_level=config.log_level,
+    log_file_path=config.log_file_path,
+    log_rotate_when=config.log_rotate_when,
+    log_rotate_interval=config.log_rotate_interval,
+    log_rotate_backup_count=config.log_rotate_backup_count,
+)
 logger = structlog.get_logger(__name__)
 
 # Глобальные переменные для graceful shutdown

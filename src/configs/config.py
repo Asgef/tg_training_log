@@ -43,6 +43,13 @@ class Config:
                 "GOOGLE_CREDENTIALS_JSON не установлен в переменных окружения"
             )
 
+        # Logging
+        self.log_level: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
+        self.log_file_path: str | None = os.getenv("LOG_FILE_PATH")
+        self.log_rotate_when: str = os.getenv("LOG_ROTATE_WHEN", "midnight")
+        self.log_rotate_interval: int = int(os.getenv("LOG_ROTATE_INTERVAL", "1"))
+        self.log_rotate_backup_count: int = int(os.getenv("LOG_ROTATE_BACKUP_COUNT", "7"))
+
     def get_google_credentials_dict(self) -> dict[str, Any]:
         """Возвращает Google credentials в виде словаря."""
         if not self.google_credentials_json:

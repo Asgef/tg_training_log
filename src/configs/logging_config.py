@@ -1,9 +1,9 @@
 """Настройка структурированного логирования с использованием structlog."""
 import logging
-import os
 import sys
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import structlog
 from structlog.types import EventDict
@@ -58,18 +58,53 @@ def mask_pii_processor(logger: Any, name: str, event_dict: EventDict) -> EventDi
     return event_dict
 
 
-def setup_logging() -> None:
-    """Настраивает структурированное логирование с JSON форматом."""
-    log_level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    log_level = logging._nameToLevel.get(log_level_name, logging.DEBUG)
+def setup_logging(
+    log_level: str = "DEBUG",
+    log_file_path: Optional[str] = None,
+    log_rotate_when: str = "midnight",
+    log_rotate_interval: int = 1,
+    log_rotate_backup_count: int = 7,
+) -> None:
+    """Настраивает структурированное логирование с JSON форматом.
+    
+    Args:
+        log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file_path: Путь к файлу логов (опционально)
+        log_rotate_when: Когда ротировать логи ('S', 'M', 'H', 'D', 'midnight')
+        log_rotate_interval: Интервал ротации
+        log_rotate_backup_count: Количество файлов для хранения
+    """
+    log_level_name = log_level.upper()
+    log_level_value = logging._nameToLevel.get(log_level_name, logging.DEBUG)
 
-    # Настраиваем стандартный logging для совместимости (только stdout)
+    # Создаём список handlers: всегда stdout для Docker logs
+    handlers = [
+        logging.StreamHandler(sys.stdout),
+    ]
+    
+    # Добавляем TimedRotatingFileHandler если указан путь к файлу
+    if log_file_path:
+        log_dir = Path(log_file_path).parent
+        if log_dir:
+            # Создаём директорию если её нет
+            log_dir.mkdir(parents=True, exist_ok=True)
+        
+        # TimedRotatingFileHandler с UTF-8 для корректной записи кириллицы
+        # Ротация по времени с настраиваемыми параметрами
+        file_handler = TimedRotatingFileHandler(
+            log_file_path,
+            when=log_rotate_when,
+            interval=log_rotate_interval,
+            backupCount=log_rotate_backup_count,
+            encoding='utf-8'
+        )
+        handlers.append(file_handler)
+
+    # Настраиваем стандартный logging для совместимости (stdout + файл при необходимости)
     logging.basicConfig(
         format="%(message)s",
-        level=log_level,
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-        ],
+        level=log_level_value,
+        handlers=handlers,
         force=True,
     )
     
@@ -97,7 +132,7 @@ def setup_logging() -> None:
             # Преобразуем в JSON (ensure_ascii=False для корректного отображения кириллицы)
             structlog.processors.JSONRenderer(ensure_ascii=False),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+        wrapper_class=structlog.make_filtering_bound_logger(log_level_value),
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
