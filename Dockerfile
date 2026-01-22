@@ -11,11 +11,17 @@ COPY pyproject.toml uv.lock ./
 # Установка зависимостей
 RUN uv sync --frozen --no-dev
 
-# Копирование кода приложения
-COPY . .
+# Копирование кода приложения (сохраняем структуру src/)
+COPY src/ ./src/
+
+# Копирование конфигурационных файлов
+COPY alembic.ini ./
 
 # Копирование Google credentials файла (если существует)
 COPY tgtraining-69d93acc8e17.json* ./
+
+# Установка PYTHONPATH для корректных импортов
+ENV PYTHONPATH=/app
 
 # Применение миграций при старте (опционально, можно убрать если миграции применяются отдельно)
 # RUN uv run alembic upgrade head

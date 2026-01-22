@@ -1,6 +1,8 @@
 """Настройка структурированного логирования с использованием structlog."""
 import logging
+import os
 import sys
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -58,11 +60,17 @@ def mask_pii_processor(logger: Any, name: str, event_dict: EventDict) -> EventDi
 
 def setup_logging() -> None:
     """Настраивает структурированное логирование с JSON форматом."""
-    # Настраиваем стандартный logging для совместимости
+    log_level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
+    log_level = logging._nameToLevel.get(log_level_name, logging.DEBUG)
+
+    # Настраиваем стандартный logging для совместимости (только stdout)
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
-        level=logging.INFO,
+        level=log_level,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+        ],
+        force=True,
     )
     
     # Настраиваем structlog
@@ -89,8 +97,8 @@ def setup_logging() -> None:
             # Преобразуем в JSON (ensure_ascii=False для корректного отображения кириллицы)
             structlog.processors.JSONRenderer(ensure_ascii=False),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )

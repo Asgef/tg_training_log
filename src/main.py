@@ -1,6 +1,8 @@
 import asyncio
 import os
 import signal
+import sys
+import traceback
 from typing import Optional, Any
 
 import structlog
@@ -299,4 +301,14 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Бот остановлен пользователем (KeyboardInterrupt)")
     except Exception as e:
-        logger.exception(f"Бот столкнулся с ошибкой: {e}")
+        # Явное логирование с полным traceback
+        logger.exception(
+            "Критическая ошибка при запуске бота",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
+        # Также выводим в stderr на случай, если логирование сломано
+        print("КРИТИЧЕСКАЯ ОШИБКА (вывод в stderr):", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)

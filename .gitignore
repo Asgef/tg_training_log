@@ -28,3 +28,4 @@ target/
 .dockerignore
 coverage.xml
 logs/*
+postgres_data/*

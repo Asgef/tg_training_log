@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   postgres:
@@ -9,22 +8,21 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
-    restart: always
+    restart: unless-stopped
 
   app:
     build:
       dockerfile: Dockerfile
     container_name: tg_training_log_app
-    env_file:
-      - .env
+    env_file: .env
     depends_on:
       - postgres
     restart: always
     volumes:
-      - ./src:/app/src
+      # - ./src:/app/src
       - ./logs:/app/logs
       - ./tgtraining-69d93acc8e17.json:/app/tgtraining-69d93acc8e17.json:ro
 

@@ -1,5 +1,3 @@
-from logging.config import fileConfig
-
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncConnection
 
@@ -7,6 +5,7 @@ from alembic import context
 
 import sys
 import asyncio
+import logging
 from pathlib import Path
 
 # Добавляем корневую директорию проекта в путь
@@ -18,10 +17,11 @@ from src.configs.config import config as app_config
 # доступ к значениям в используемом .ini файле.
 config = context.config
 
-# Интерпретация конфигурационного файла для логирования Python.
-# Эта строка в основном настраивает логгеры.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Настраиваем логгер Alembic для использования structlog
+# Убираем fileConfig, чтобы не перезаписывать настройки structlog
+# Логгер Alembic будет использовать уже настроенный structlog через stdlib.LoggerFactory
+alembic_logger = logging.getLogger("alembic")
+alembic_runtime_logger = logging.getLogger("alembic.runtime.migration")
 
 
 # добавьте объект MetaData вашей модели здесь
