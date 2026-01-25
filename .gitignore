@@ -25,7 +25,6 @@ build/
 target/
 
 # Docker
-.dockerignore
 coverage.xml
 logs/*
 postgres_data/
