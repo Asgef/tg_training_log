@@ -140,10 +140,34 @@ async def export_data_to_sheets_callback(
 ) -> None:
     """Обработчик экспорта данных в Google Sheets."""
     user_id = callback.from_user.id
+    await callback.answer()
+    
+    # Проверяем настройку Google Sheets ДО запуска экспорта
+    async with db_session_factory() as session:
+        user_repo = UserRepository(session=session)
+        user = await user_repo.get_by_id(user_id)
+        
+        if not user or not user.spreadsheet_id:
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⚙️ Настроить Google Sheets", callback_data="setup_google_sheets")]
+            ])
+            await callback.message.edit_text(
+                "❌ Google Sheets не настроен для вашего аккаунта.\n\n"
+                "Для экспорта данных необходимо сначала настроить Google Таблицу.\n"
+                "Нажмите кнопку ниже, чтобы начать настройку.",
+                reply_markup=keyboard
+            )
+            logger.info(
+                "Пользователь попытался экспортировать данные без настроенного Google Sheets",
+                event_type="google_sheets_export_no_config",
+                user_id=user_id,
+            )
+            return
+    
+    # Если настройка есть, запускаем экспорт
     await callback.message.edit_text(
         "Экспорт запущен. Сообщу, когда данные будут переданы в Google Таблицу."
     )
-    await callback.answer()
 
     async def _run_export() -> None:
         try:
@@ -203,7 +227,20 @@ async def export_data_to_sheets_callback(
                 user_id=user_id,
                 error=str(e),
             )
-            await callback.message.answer(f"Ошибка экспорта: {e}")
+            # Проверяем, является ли ошибка связанной с отсутствием настройки
+            error_msg = str(e)
+            if "не настроен" in error_msg.lower() or "not configured" in error_msg.lower():
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⚙️ Настроить Google Sheets", callback_data="setup_google_sheets")]
+                ])
+                await callback.message.answer(
+                    "❌ Google Sheets не настроен для вашего аккаунта.\n\n"
+                    "Для экспорта данных необходимо сначала настроить Google Таблицу.\n"
+                    "Нажмите кнопку ниже, чтобы начать настройку.",
+                    reply_markup=keyboard
+                )
+            else:
+                await callback.message.answer(f"Ошибка экспорта: {e}")
         except Exception as e:
             logger.error(
                 "Неожиданная ошибка в export_data_to_sheets_callback",
