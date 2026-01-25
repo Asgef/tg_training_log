@@ -273,21 +273,54 @@ def build_individual_muscles_keyboard(
     )
 
 
+def build_library_start_menu_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура стартового меню библиотеки."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔍 Поиск", callback_data="library_start_search")],
+        [InlineKeyboardButton(text="📋 Показать список", callback_data="library_show_list")],
+        [InlineKeyboardButton(text="↩️ Назад", callback_data="machines_menu")],
+    ])
+
+
+def build_library_search_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для экрана поиска."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="library_cancel_search")],
+    ])
+
+
 def build_machine_library_list_keyboard(
     machines: List[MachineLibraryItemDTO],
+    page: int = 0,
+    has_next: bool = False,
+    has_prev: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Клавиатура со списком библиотечных тренажёров."""
+    """Клавиатура со списком библиотечных тренажёров с пагинацией."""
     keyboard_buttons = []
+    
+    # Кнопки тренажёров
     for machine in machines:
         keyboard_buttons.append(
             [InlineKeyboardButton(text=machine.name_ru, callback_data=f"library_machine_{machine.id}")]
         )
+    
+    # Навигация по страницам
+    nav_buttons = []
+    if has_prev:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data="library_list_page_prev"))
+    if has_next:
+        nav_buttons.append(InlineKeyboardButton(text="➡️ Вперёд", callback_data="library_list_page_next"))
+    if nav_buttons:
+        keyboard_buttons.append(nav_buttons)
+    
+    # Кнопки действий
     keyboard_buttons.append(
-        [InlineKeyboardButton(text="🔍 Новый поиск", callback_data="library_search_again")]
+        [InlineKeyboardButton(text="🔍 Поиск", callback_data="library_start_search")]
     )
     keyboard_buttons.append(
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="machines_menu")]
+        [InlineKeyboardButton(text="↩️ Назад", callback_data="machines_menu")]
     )
+    
     return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
 
@@ -297,5 +330,5 @@ def build_machine_library_details_keyboard(
     """Клавиатура карточки библиотечного тренажёра."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Добавить себе", callback_data=f"add_library_machine_{machine_library_id}")],
-        [InlineKeyboardButton(text="⬅️ Назад к списку", callback_data="library_back_to_results")],
+        [InlineKeyboardButton(text="↩️ К списку", callback_data="library_back_to_results")],
     ])

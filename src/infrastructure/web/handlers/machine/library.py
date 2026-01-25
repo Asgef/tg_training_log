@@ -9,6 +9,8 @@ from src.infrastructure.web.handlers.machine.states import MachineStates
 from src.infrastructure.web.handlers.machine.keyboards import (
     build_machine_library_list_keyboard,
     build_machine_library_details_keyboard,
+    build_library_start_menu_keyboard,
+    build_library_search_keyboard,
 )
 
 logger = logging.getLogger(__name__)
@@ -19,23 +21,62 @@ async def _show_library_list(
     target_message: Message,
     machine_library_use_case: IMachineLibraryUseCase,
     query: str,
+    page: int = 0,
+    page_size: int = 10,
+    use_edit: bool = False,
 ) -> None:
+    """Показать список библиотечных тренажёров с пагинацией.
+    
+    Args:
+        target_message: Сообщение для редактирования/ответа
+        machine_library_use_case: Use case для работы с библиотекой
+        query: Поисковый запрос (пустая строка для полного списка)
+        page: Номер страницы (0-based)
+        page_size: Размер страницы
+        use_edit: Если True, использовать edit_text вместо answer
+    """
+    offset = page * page_size
+    limit = page_size
+    
     if query:
-        machines = await machine_library_use_case.search_library_machines(query=query)
+        machines = await machine_library_use_case.search_library_machines(
+            query=query, limit=limit + 1, offset=offset
+        )
         title = f"Результаты поиска: «{query}»"
     else:
-        machines = await machine_library_use_case.list_library_machines()
+        machines = await machine_library_use_case.list_library_machines(
+            limit=limit + 1, offset=offset
+        )
         title = "Библиотека тренажёров"
 
     if not machines:
-        await target_message.answer("Ничего не найдено. Попробуйте другой запрос.")
+        # Пустой список - показываем сообщение с кнопкой показать список
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Показать список", callback_data="library_show_list")],
+            [InlineKeyboardButton(text="↩️ Назад", callback_data="machines_menu")],
+        ])
+        if use_edit:
+            await target_message.edit_text("Ничего не найдено.", reply_markup=keyboard)
+        else:
+            await target_message.answer("Ничего не найдено.", reply_markup=keyboard)
         return
 
+    # Проверяем, есть ли следующая страница
+    has_next = len(machines) > page_size
+    if has_next:
+        machines = machines[:page_size]  # Убираем лишний элемент
+    
+    has_prev = page > 0
+
     text_lines = [title, "", "Выберите тренажёр:"]
-    await target_message.answer(
-        "\n".join(text_lines),
-        reply_markup=build_machine_library_list_keyboard(machines),
+    keyboard = build_machine_library_list_keyboard(
+        machines, page=page, has_next=has_next, has_prev=has_prev
     )
+    
+    if use_edit:
+        await target_message.edit_text("\n".join(text_lines), reply_markup=keyboard)
+    else:
+        await target_message.answer("\n".join(text_lines), reply_markup=keyboard)
 
 
 @router.callback_query(F.data == "add_machine_from_library")
@@ -45,10 +86,57 @@ async def start_library_flow(
     machine_library_use_case: IMachineLibraryUseCase,
 ) -> None:
     """Старт выбора тренажёра из библиотеки."""
-    await state.set_state(MachineStates.waiting_for_library_search_query)
-    await state.update_data(library_last_query="")
+    await state.clear()
     await callback.message.edit_text(
-        "Введите название для поиска в библиотеке или отправьте пустое сообщение, чтобы увидеть список."
+        "➕ Добавить тренажёр из библиотеки\nВыберите действие:",
+        reply_markup=build_library_start_menu_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "library_show_list")
+async def library_show_list(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_library_use_case: IMachineLibraryUseCase,
+) -> None:
+    """Показать первую страницу списка библиотечных тренажёров."""
+    await state.update_data(
+        library_last_query="",
+        library_page=0,
+        library_is_search=False,
+    )
+    await _show_library_list(
+        callback.message, machine_library_use_case, query="", page=0, use_edit=True
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "library_start_search")
+async def library_start_search(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Начать поиск - перейти в FSM состояние."""
+    await state.set_state(MachineStates.waiting_for_library_search_query)
+    await state.update_data(library_last_query="", library_page=0, library_is_search=True)
+    await callback.message.edit_text(
+        "Введите часть названия",
+        reply_markup=build_library_search_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "library_cancel_search")
+async def library_cancel_search(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Отменить поиск и вернуться к стартовому меню."""
+    await state.clear()
+    await callback.message.edit_text(
+        "➕ Добавить тренажёр из библиотеки\nВыберите действие:",
+        reply_markup=build_library_start_menu_keyboard(),
     )
     await callback.answer()
 
@@ -59,18 +147,45 @@ async def process_library_search_query(
     state: FSMContext,
     machine_library_use_case: IMachineLibraryUseCase,
 ) -> None:
+    """Обработать поисковый запрос."""
     query = (message.text or "").strip()
-    await state.update_data(library_last_query=query)
-    await _show_library_list(message, machine_library_use_case, query)
+    await state.update_data(library_last_query=query, library_page=0)
+    await _show_library_list(message, machine_library_use_case, query, page=0)
 
 
-@router.callback_query(F.data == "library_search_again")
-async def library_search_again(
+@router.callback_query(F.data == "library_list_page_prev")
+async def library_list_page_prev(
     callback: CallbackQuery,
     state: FSMContext,
+    machine_library_use_case: IMachineLibraryUseCase,
 ) -> None:
-    await state.set_state(MachineStates.waiting_for_library_search_query)
-    await callback.message.edit_text("Введите новый запрос для поиска в библиотеке.")
+    """Перейти на предыдущую страницу списка."""
+    data = await state.get_data()
+    query = (data.get("library_last_query") or "").strip()
+    current_page = data.get("library_page", 0)
+    new_page = max(0, current_page - 1)
+    await state.update_data(library_page=new_page)
+    await _show_library_list(
+        callback.message, machine_library_use_case, query, page=new_page, use_edit=True
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "library_list_page_next")
+async def library_list_page_next(
+    callback: CallbackQuery,
+    state: FSMContext,
+    machine_library_use_case: IMachineLibraryUseCase,
+) -> None:
+    """Перейти на следующую страницу списка."""
+    data = await state.get_data()
+    query = (data.get("library_last_query") or "").strip()
+    current_page = data.get("library_page", 0)
+    new_page = current_page + 1
+    await state.update_data(library_page=new_page)
+    await _show_library_list(
+        callback.message, machine_library_use_case, query, page=new_page, use_edit=True
+    )
     await callback.answer()
 
 
@@ -80,9 +195,13 @@ async def library_back_to_results(
     state: FSMContext,
     machine_library_use_case: IMachineLibraryUseCase,
 ) -> None:
+    """Вернуться к списку результатов."""
     data = await state.get_data()
     query = (data.get("library_last_query") or "").strip()
-    await _show_library_list(callback.message, machine_library_use_case, query)
+    page = data.get("library_page", 0)
+    await _show_library_list(
+        callback.message, machine_library_use_case, query, page=page, use_edit=True
+    )
     await callback.answer()
 
 

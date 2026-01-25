@@ -2,7 +2,7 @@
 import structlog
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
 from src.infrastructure.web.handlers.machine.keyboards import KeyboardBuilder
@@ -10,6 +10,16 @@ from src.infrastructure.web.handlers.base import BaseHandler
 
 logger = structlog.get_logger(__name__)
 router = Router()
+
+
+def build_machines_menu_keyboard() -> InlineKeyboardMarkup:
+    """Построить клавиатуру меню управления тренажёрами."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Добавить из библиотеки", callback_data="add_machine_from_library")],
+        [InlineKeyboardButton(text="Создать вручную", callback_data="add_machine_manual")],
+        [InlineKeyboardButton(text="Мои тренажеры", callback_data="list_machines")],
+        [InlineKeyboardButton(text="↩️ Назад", callback_data="machines_menu_back")]
+    ])
 
 
 @router.message(Command("machines"))
@@ -25,12 +35,7 @@ async def cmd_machines(
         event_type="machines_command",
         user_id=user_id,
     )
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Добавить из библиотеки", callback_data="add_machine_from_library")],
-        [InlineKeyboardButton(text="Создать вручную", callback_data="add_machine_manual")],
-        [InlineKeyboardButton(text="Мои тренажеры", callback_data="list_machines")]
-    ])
+    keyboard = build_machines_menu_keyboard()
     await message.answer("Управление тренажерами:", reply_markup=keyboard)
 
 
@@ -76,7 +81,34 @@ async def machines_menu_callback(
     machine_management_use_case: IMachineManagementUseCase,
 ) -> None:
     """Возврат к меню управления тренажёрами."""
-    await cmd_machines(callback.message, machine_management_use_case)
+    user_id = BaseHandler.get_user_id(callback)
+    logger.info(
+        "Пользователь вернулся в меню управления тренажёрами",
+        event_type="machines_menu_return",
+        user_id=user_id,
+    )
+    keyboard = build_machines_menu_keyboard()
+    await callback.message.edit_text("Управление тренажерами:", reply_markup=keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "machines_menu_back")
+@BaseHandler.error_handler(default_error_message="Произошла ошибка при возврате из меню тренажеров.")
+async def machines_menu_back_callback(
+    callback: CallbackQuery,
+) -> None:
+    """Возврат из меню управления тренажёрами - убрать inline-клавиатуру."""
+    user_id = BaseHandler.get_user_id(callback)
+    logger.info(
+        "Пользователь вернулся из меню управления тренажёрами",
+        event_type="machines_menu_back",
+        user_id=user_id,
+    )
+    # Редактируем сообщение, убирая inline-клавиатуру
+    await callback.message.edit_text(
+        "Используйте кнопки меню внизу экрана.",
+        reply_markup=None
+    )
     await callback.answer()
 
 
