@@ -3,3 +3,4 @@ from src.infrastructure.web.handlers.base import BaseHandler
 
 # Импортируем для обратной совместимости
 safe_edit_text = BaseHandler.safe_edit_text
+safe_callback_answer = BaseHandler.safe_callback_answer

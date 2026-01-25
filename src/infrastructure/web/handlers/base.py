@@ -226,3 +226,39 @@ class BaseHandler:
                 exc_info=True,
             )
             raise
+    
+    @staticmethod
+    async def safe_callback_answer(
+        callback: CallbackQuery,
+        text: str | None = None,
+        show_alert: bool = False,
+    ) -> None:
+        """
+        Безопасный ответ на callback query с обработкой устаревших запросов.
+        
+        Args:
+            callback: CallbackQuery для ответа
+            text: Текст ответа (опционально)
+            show_alert: Показывать ли alert (опционально)
+        """
+        try:
+            await callback.answer(text=text, show_alert=show_alert)
+        except TelegramBadRequest as e:
+            error_msg = str(e).lower()
+            if "query is too old" in error_msg or "query id is invalid" in error_msg:
+                logger.debug(
+                    "Callback query устарел, игнорируем",
+                    user_id=callback.from_user.id,
+                )
+            else:
+                logger.warning(
+                    "TelegramBadRequest при ответе на callback",
+                    user_id=callback.from_user.id,
+                    error=str(e),
+                )
+        except Exception as e:
+            logger.warning(
+                "Ошибка при ответе на callback",
+                user_id=callback.from_user.id,
+                error=str(e),
+            )

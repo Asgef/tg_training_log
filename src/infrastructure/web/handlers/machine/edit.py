@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
 from src.infrastructure.web.handlers.machine.states import MachineStates
-from src.infrastructure.web.handlers.machine.base import safe_edit_text
+from src.infrastructure.web.handlers.machine.base import safe_edit_text, safe_callback_answer
 from src.infrastructure.web.handlers.machine.keyboards import (
     build_muscle_zones_keyboard,
     build_individual_muscles_keyboard,
@@ -166,21 +166,33 @@ async def edit_machine_muscles_callback(
             await callback.answer()
             return
         
-        current_zone_ids = [z.id for z in machine.zones] if machine.zones else []
-        current_muscle_ids = [m.id for m in machine.muscles] if machine.muscles else []
-        logger.debug(
-            f"Текущие зоны/мышцы тренажёра {machine_id}: {current_zone_ids}/{current_muscle_ids}"
-        )
-        zone_muscle_ids = await _get_zone_muscle_ids(
-            machine_management_use_case, current_zone_ids
-        )
-        manual_muscle_ids = list(set(current_muscle_ids) - set(zone_muscle_ids))
-        await state.update_data(
-            editing_machine_id=machine_id,
-            selected_zone_ids=current_zone_ids.copy(),
-            selected_muscle_ids=current_muscle_ids.copy(),
-            manual_muscle_ids=manual_muscle_ids,
-        )
+        # Проверяем, есть ли уже данные в FSM state (если пользователь возвращается из выбора мышц)
+        data = await state.get_data()
+        if data.get("editing_machine_id") == machine_id and "selected_zone_ids" in data:
+            # Используем данные из FSM state, чтобы сохранить изменения пользователя
+            current_zone_ids = data.get("selected_zone_ids", [])
+            current_muscle_ids = data.get("selected_muscle_ids", [])
+            manual_muscle_ids = data.get("manual_muscle_ids", [])
+            logger.debug(
+                f"Используем данные из FSM state для тренажёра {machine_id}: зоны={current_zone_ids}, мышцы={current_muscle_ids}"
+            )
+        else:
+            # Загружаем данные из БД (первый вход в редактирование)
+            current_zone_ids = [z.id for z in machine.zones] if machine.zones else []
+            current_muscle_ids = [m.id for m in machine.muscles] if machine.muscles else []
+            logger.debug(
+                f"Загружаем данные из БД для тренажёра {machine_id}: зоны={current_zone_ids}, мышцы={current_muscle_ids}"
+            )
+            zone_muscle_ids = await _get_zone_muscle_ids(
+                machine_management_use_case, current_zone_ids
+            )
+            manual_muscle_ids = list(set(current_muscle_ids) - set(zone_muscle_ids))
+            await state.update_data(
+                editing_machine_id=machine_id,
+                selected_zone_ids=current_zone_ids.copy(),
+                selected_muscle_ids=current_muscle_ids.copy(),
+                manual_muscle_ids=manual_muscle_ids,
+            )
         
         # Получаем зоны
         muscle_zones = await machine_management_use_case.get_all_muscle_zones()
@@ -193,7 +205,7 @@ async def edit_machine_muscles_callback(
             return
         
         # Предлагаем выбрать зоны или отдельные мышцы с визуальной индикацией
-        keyboard = await build_muscle_zones_keyboard(
+        keyboard = build_muscle_zones_keyboard(
             muscle_zones, current_zone_ids, machine_id, machine_management_use_case, is_creation=False
         )
         
@@ -313,7 +325,7 @@ async def edit_select_zone_callback(
             return
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await build_muscle_zones_keyboard(
+        keyboard = build_muscle_zones_keyboard(
             muscle_zones, selected_zone_ids, machine_id, machine_management_use_case, is_creation=False
         )
         
@@ -394,7 +406,7 @@ async def edit_select_individual_muscles_callback(
             await callback.answer("В базе данных нет мышц.", show_alert=True)
             return
         
-        keyboard = await build_individual_muscles_keyboard(
+        keyboard = build_individual_muscles_keyboard(
             all_muscles, selected_muscle_ids, machine_id, is_creation=False
         )
         
@@ -469,7 +481,8 @@ async def toggle_edit_muscle_callback(
         
     except Exception as e:
         logger.error(f"Ошибка в toggle_edit_muscle_callback для пользователя {user_id}, мышца {muscle_id}: {e}", exc_info=True)
-        await callback.answer("Произошла ошибка при выборе мышцы.")
+        # Безопасный ответ на callback (игнорирует устаревшие запросы)
+        await safe_callback_answer(callback, "Произошла ошибка при выборе мышцы.")
 
 
 @router.callback_query(F.data == "save_machine_muscles")

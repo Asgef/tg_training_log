@@ -55,7 +55,10 @@ async def list_machines_callback(
             event_type="machines_list_empty",
             user_id=user_id,
         )
-        await callback.message.edit_text("У вас пока нет добавленных тренажеров.")
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Назад", callback_data="machines_menu")]
+        ])
+        await callback.message.edit_text("У вас пока нет добавленных тренажеров.", reply_markup=keyboard)
         await callback.answer()
         return
 

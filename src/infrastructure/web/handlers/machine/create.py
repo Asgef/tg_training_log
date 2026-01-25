@@ -1,14 +1,14 @@
 """Обработчики для создания тренажёров."""
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from pydantic import ValidationError
 
 from src.application.use_case_interfaces import IMachineManagementUseCase
 from src.application.dto import MachineInputDTO
 from src.infrastructure.web.handlers.machine.states import MachineStates
-from src.infrastructure.web.handlers.machine.base import safe_edit_text
+from src.infrastructure.web.handlers.machine.base import safe_edit_text, safe_callback_answer
 from src.infrastructure.web.handlers.machine.keyboards import (
     build_muscle_zones_keyboard,
     build_individual_muscles_keyboard,
@@ -39,7 +39,13 @@ async def add_machine_callback(
     """Обработчик начала процесса добавления тренажёра."""
     try:
         logger.info(f"Пользователь {callback.from_user.id} инициировал процесс добавления тренажёра.")
-        await callback.message.edit_text("Введите название нового тренажера:")
+        cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_machine_creation")]
+        ])
+        await callback.message.edit_text(
+            "Введите название нового тренажера:",
+            reply_markup=cancel_keyboard
+        )
         await state.set_state(MachineStates.waiting_for_machine_name)
         await callback.answer()
     except Exception as e:
@@ -105,7 +111,7 @@ async def process_machine_name(
             return
         
         # Предлагаем выбрать зоны или отдельные мышцы
-        keyboard = await build_muscle_zones_keyboard(
+        keyboard = build_muscle_zones_keyboard(
             muscle_zones, [], None, machine_management_use_case, is_creation=True
         )
         
@@ -124,6 +130,28 @@ async def process_machine_name(
     except Exception as e:
         logger.error(f"Неожиданная ошибка в process_machine_name для пользователя {user_id}: {e}", exc_info=True)
         await message.answer(f"Произошла непредвиденная ошибка: {e}")
+        await state.clear()
+
+
+@router.callback_query(F.data == "cancel_machine_creation")
+async def cancel_machine_creation_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Обработчик отмены создания тренажёра."""
+    user_id = callback.from_user.id
+    try:
+        logger.info(f"Пользователь {user_id} отменил создание тренажёра.")
+        await state.clear()
+        # Возвращаем в меню управления тренажёрами
+        from src.infrastructure.web.handlers.machine.view import build_machines_menu_keyboard
+        keyboard = build_machines_menu_keyboard()
+        await callback.message.edit_text("Управление тренажерами:", reply_markup=keyboard)
+        await callback.answer("Создание тренажёра отменено.")
+    except Exception as e:
+        logger.error(f"Ошибка в cancel_machine_creation_callback для пользователя {user_id}: {e}", exc_info=True)
+        await callback.message.answer("Произошла ошибка при отмене создания тренажера.")
+        await callback.answer()
         await state.clear()
 
 
@@ -211,7 +239,7 @@ async def select_zone_callback(
             return
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await build_muscle_zones_keyboard(
+        keyboard = build_muscle_zones_keyboard(
             muscle_zones, selected_zone_ids, None, machine_management_use_case, is_creation=True
         )
         
@@ -281,7 +309,7 @@ async def select_individual_muscles_callback(
         selected_zone_ids = data.get("selected_zone_ids", [])
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
-        keyboard = await build_individual_muscles_keyboard(
+        keyboard = build_individual_muscles_keyboard(
             all_muscles, selected_muscle_ids, None, is_creation=True
         )
         
@@ -350,7 +378,8 @@ async def toggle_muscle_callback(
         
     except Exception as e:
         logger.error(f"Ошибка в toggle_muscle_callback для пользователя {user_id}, мышца {muscle_id}: {e}", exc_info=True)
-        await callback.answer("Произошла ошибка при выборе мышцы.")
+        # Безопасный ответ на callback (игнорирует устаревшие запросы)
+        await safe_callback_answer(callback, "Произошла ошибка при выборе мышцы.")
 
 
 @router.callback_query(F.data == "add_more_muscles")
@@ -376,7 +405,7 @@ async def add_more_muscles_callback(
         selected_muscle_ids = data.get("selected_muscle_ids", [])
         
         # Создаем клавиатуру с визуальной индикацией
-        keyboard = await build_muscle_zones_keyboard(
+        keyboard = build_muscle_zones_keyboard(
             muscle_zones, selected_zone_ids, None, machine_management_use_case, is_creation=True
         )
         

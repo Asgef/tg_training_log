@@ -19,7 +19,7 @@ class KeyboardBuilder:
         """
         self.use_case = machine_management_use_case
     
-    async def build_muscle_zones_keyboard(
+    def build_muscle_zones_keyboard(
         self,
         muscle_zones: List[MuscleZone],
         selected_zone_ids: list[int],
@@ -72,6 +72,9 @@ class KeyboardBuilder:
             keyboard_buttons.append([
                 InlineKeyboardButton(text="⏭️ Пропустить (без мышц)", callback_data="skip_muscle_selection")
             ])
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_machine_creation")
+            ])
         else:
             keyboard_buttons.append([
                 InlineKeyboardButton(text="✅ Сохранить изменения", callback_data="save_machine_muscles")
@@ -103,6 +106,19 @@ class KeyboardBuilder:
             InlineKeyboardMarkup с кнопками отдельных мышц
         """
         keyboard_buttons = []
+        
+        # При редактировании добавляем кнопки управления в начало, чтобы они были всегда видны
+        if not is_creation and machine_id:
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="✅ Сохранить изменения", callback_data="save_machine_muscles")
+            ])
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="⬅️ Назад к выбору", callback_data=f"edit_machine_muscles_{machine_id}")
+            ])
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="❌ Отмена", callback_data=f"view_machine_{machine_id}")
+            ])
+            keyboard_buttons.append([])  # Пустая строка для разделения
         
         # Группируем мышцы по зонам (одна мышца -> одна группа отображения)
         muscles_by_group: dict = {}
@@ -148,7 +164,7 @@ class KeyboardBuilder:
                     ))
                 keyboard_buttons.append(row)
         
-        # Добавляем кнопки управления
+        # Добавляем кнопки управления в конец (для создания или как дубликат для редактирования)
         if is_creation:
             keyboard_buttons.append([
                 InlineKeyboardButton(text="✅ Завершить и создать тренажер", callback_data="finish_machine_creation")
@@ -156,13 +172,25 @@ class KeyboardBuilder:
             keyboard_buttons.append([
                 InlineKeyboardButton(text="⬅️ Назад к выбору групп", callback_data="add_more_muscles")
             ])
-        else:
             keyboard_buttons.append([
-                InlineKeyboardButton(text="✅ Сохранить изменения", callback_data="save_machine_muscles")
+                InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_machine_creation")
             ])
+        else:
+            # При редактировании кнопки уже добавлены в начало, но добавляем их и в конец для удобства
             if machine_id:
                 keyboard_buttons.append([
+                    InlineKeyboardButton(text="✅ Сохранить изменения", callback_data="save_machine_muscles")
+                ])
+                keyboard_buttons.append([
                     InlineKeyboardButton(text="⬅️ Назад к выбору", callback_data=f"edit_machine_muscles_{machine_id}")
+                ])
+                keyboard_buttons.append([
+                    InlineKeyboardButton(text="❌ Отмена", callback_data=f"view_machine_{machine_id}")
+                ])
+            else:
+                # Fallback, если machine_id почему-то отсутствует
+                keyboard_buttons.append([
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="machines_menu")
                 ])
         
         return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
@@ -200,6 +228,10 @@ class KeyboardBuilder:
             keyboard_buttons.append([
                 InlineKeyboardButton(text=machine.name, callback_data=f"view_machine_{machine.id}")
             ])
+        # Добавляем кнопку "Назад" для возврата в меню управления тренажёрами
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="↩️ Назад", callback_data="machines_menu")
+        ])
         return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     
     @staticmethod
@@ -222,7 +254,7 @@ class KeyboardBuilder:
 
 
 # Функции-обертки для обратной совместимости
-async def build_muscle_zones_keyboard(
+def build_muscle_zones_keyboard(
     muscle_zones: List[MuscleZone],
     selected_zone_ids: list[int],
     machine_id: int | None,
@@ -243,7 +275,7 @@ async def build_muscle_zones_keyboard(
         InlineKeyboardMarkup с кнопками групп мышц
     """
     builder = KeyboardBuilder(machine_management_use_case)
-    return await builder.build_muscle_zones_keyboard(
+    return builder.build_muscle_zones_keyboard(
         muscle_zones, selected_zone_ids, machine_id, is_creation
     )
 
