@@ -77,3 +77,9 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
+
+[dependency-groups]
+dev = [
+    "paramiko<3.0",
+    "sshtunnel>=0.4.0",
+]

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
 Скрипт для заполнения базы данных мышцами и мышечными зонами из YAML-справочника.
+
+Автоматически создаёт SSH туннель к удалённой БД, если DATABASE_URL указывает на localhost:5433.
 """
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Iterable, Tuple
@@ -18,6 +21,9 @@ from src.configs.logging_config import setup_logging
 from src.infrastructure.db.base import get_session
 from src.infrastructure.db.repositories.muscle_repository import MuscleRepository
 from src.domain.models import MuscleZone, Muscle, MuscleZoneMuscle
+
+# Импорт из scripts (относительный импорт)
+from ssh_tunnel import ssh_tunnel_from_config
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -147,9 +153,33 @@ async def seed_muscles() -> None:
         logger.info("Заполнение базы данных завершено успешно!")
 
 
+async def main() -> None:
+    """Главная функция с поддержкой SSH туннеля."""
+    # Проверяем, нужен ли SSH туннель
+    database_url = os.getenv("DATABASE_URL", "")
+    use_ssh_tunnel = False
+    
+    if database_url:
+        # Если DATABASE_URL указывает на localhost:5433, используем SSH туннель
+        if "localhost:5433" in database_url or "127.0.0.1:5433" in database_url:
+            use_ssh_tunnel = True
+            logger.info("🔌 Обнаружен DATABASE_URL с localhost:5433, будет использован SSH туннель")
+    
+    if use_ssh_tunnel:
+        # Используем SSH туннель из конфига
+        ssh_host = os.getenv("SSH_TUNNEL_HOST", "asgef_fvds_db-tunnel")
+        logger.info(f"🔌 Использование SSH туннеля: {ssh_host}")
+        
+        with ssh_tunnel_from_config(ssh_config_host=ssh_host):
+            await seed_muscles()
+    else:
+        # Прямое подключение (локальная БД или уже настроенный туннель)
+        await seed_muscles()
+
+
 if __name__ == "__main__":
     try:
-        asyncio.run(seed_muscles())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Прервано пользователем")
     except Exception as e:

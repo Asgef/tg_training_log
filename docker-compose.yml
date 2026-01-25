@@ -20,7 +20,7 @@ services:
     env_file: .env
     depends_on:
       - postgres
-    restart: always
+    restart: unless-stopped
     volumes:
       # - ./src:/app/src
       - ./logs:/app/logs
