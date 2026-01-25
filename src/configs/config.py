@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from pathlib import Path
 from typing import List, Any
 from dotenv import load_dotenv
 
@@ -45,7 +46,49 @@ class Config:
 
         # Logging
         self.log_level: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
-        self.log_file_path: str | None = os.getenv("LOG_FILE_PATH")
+        # Умный fallback для пути к логам: если путь начинается с /app и директории нет - используем локальный путь
+        log_file_path_env = os.getenv("LOG_FILE_PATH")
+        
+        # Определяем корень проекта (директория с .env файлом)
+        # dotenv ищет .env начиная с текущей директории и выше
+        project_root = Path.cwd()
+        env_file = Path(".env")
+        if not env_file.exists():
+            # Пытаемся найти .env в родительских директориях
+            current = Path.cwd()
+            for _ in range(5):  # Максимум 5 уровней вверх
+                if (current / ".env").exists():
+                    project_root = current
+                    break
+                parent = current.parent
+                if parent == current:  # Достигли корня ФС
+                    break
+                current = parent
+        
+        if log_file_path_env:
+            log_path = Path(log_file_path_env)
+            # Если путь абсолютный и начинается с /app, проверяем существование
+            if log_path.is_absolute() and str(log_path).startswith("/app"):
+                if not Path("/app").exists():
+                    # Локальное окружение: используем абсолютный путь относительно корня проекта
+                    self.log_file_path = str((project_root / "logs" / "app.log").resolve())
+                    logger.info(
+                        f"Директория /app не найдена (локальное окружение), "
+                        f"используется fallback путь: {self.log_file_path}"
+                    )
+                else:
+                    # Docker окружение: используем как есть
+                    self.log_file_path = log_file_path_env
+            elif not log_path.is_absolute():
+                # Относительный путь - разрешаем относительно корня проекта
+                self.log_file_path = str((project_root / log_path).resolve())
+            else:
+                # Абсолютный путь (не /app) - используем как есть
+                self.log_file_path = log_file_path_env
+        else:
+            # Если не задан - используем абсолютный путь относительно корня проекта
+            self.log_file_path = str((project_root / "logs" / "app.log").resolve())
+        
         self.log_rotate_when: str = os.getenv("LOG_ROTATE_WHEN", "midnight")
         self.log_rotate_interval: int = int(os.getenv("LOG_ROTATE_INTERVAL", "1"))
         self.log_rotate_backup_count: int = int(os.getenv("LOG_ROTATE_BACKUP_COUNT", "7"))

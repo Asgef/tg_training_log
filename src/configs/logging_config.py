@@ -84,21 +84,30 @@ def setup_logging(
     
     # Добавляем TimedRotatingFileHandler если указан путь к файлу
     if log_file_path:
-        log_dir = Path(log_file_path).parent
-        if log_dir:
-            # Создаём директорию если её нет
-            log_dir.mkdir(parents=True, exist_ok=True)
-        
-        # TimedRotatingFileHandler с UTF-8 для корректной записи кириллицы
-        # Ротация по времени с настраиваемыми параметрами
-        file_handler = TimedRotatingFileHandler(
-            log_file_path,
-            when=log_rotate_when,
-            interval=log_rotate_interval,
-            backupCount=log_rotate_backup_count,
-            encoding='utf-8'
-        )
-        handlers.append(file_handler)
+        try:
+            log_dir = Path(log_file_path).parent
+            if log_dir:
+                # Создаём директорию если её нет
+                log_dir.mkdir(parents=True, exist_ok=True)
+            
+            # TimedRotatingFileHandler с UTF-8 для корректной записи кириллицы
+            # Ротация по времени с настраиваемыми параметрами
+            file_handler = TimedRotatingFileHandler(
+                log_file_path,
+                when=log_rotate_when,
+                interval=log_rotate_interval,
+                backupCount=log_rotate_backup_count,
+                encoding='utf-8'
+            )
+            handlers.append(file_handler)
+        except (PermissionError, OSError) as e:
+            # Если не удалось создать директорию или файл - используем только stdout
+            # Это нормально для некоторых окружений (например, read-only FS)
+            print(
+                f"WARNING: Не удалось создать файловый handler для логов: {e}. "
+                f"Используется только stdout.",
+                file=sys.stderr
+            )
 
     # Настраиваем стандартный logging для совместимости (stdout + файл при необходимости)
     logging.basicConfig(
