@@ -216,6 +216,7 @@ async def seed_machines_library() -> None:
             "machines_added": 0,
             "machines_deleted": 0,
             "machines_skipped_deletion": 0,
+            "machines_skipped_validation": 0,
             "aliases_added": 0,
             "aliases_deleted": 0,
             "aliases_skipped": 0,
@@ -231,6 +232,30 @@ async def seed_machines_library() -> None:
         
         for machine_data in yaml_machines:
             name = machine_data["name"]
+            key = machine_data.get("key", "")
+            
+            # === ВАЛИДАЦИЯ: Проверяем все зоны и мышцы перед обработкой ===
+            yaml_zone_names = set(machine_data["zones"])
+            yaml_muscle_names = set(machine_data["muscles"])
+            
+            missing_zones = [z for z in yaml_zone_names if z not in zone_name_to_id]
+            missing_muscles = [m for m in yaml_muscle_names if m not in muscle_name_to_id]
+            
+            if missing_zones or missing_muscles:
+                stats["machines_skipped_validation"] += 1
+                error_parts = []
+                if missing_zones:
+                    error_parts.append(f"несуществующие зоны: {', '.join(missing_zones)}")
+                if missing_muscles:
+                    error_parts.append(f"несуществующие мышцы: {', '.join(missing_muscles)}")
+                
+                logger.error(
+                    f"  ❌ Тренажёр '{name}' (key: {key}) пропущен из-за {', '.join(error_parts)}. "
+                    f"Проверьте названия в справочнике мышц и зон."
+                )
+                continue
+            
+            # Все зоны и мышцы найдены - продолжаем обработку
             yaml_machine_names.add(name)
             
             if name in existing_machine_names:
@@ -291,15 +316,10 @@ async def seed_machines_library() -> None:
                 logger.debug(f"    ✓ Удалён алиас '{alias_name}'")
             
             # === ШАГ 3: Обновляем связи с зонами ===
-            yaml_zone_names = set(machine_data["zones"])
+            # Все зоны уже проверены на этапе валидации, просто создаём связи
             yaml_zone_links: Set[Tuple[int, int]] = set()
             
             for zone_name in yaml_zone_names:
-                if zone_name not in zone_name_to_id:
-                    logger.warning(
-                        f"  ⚠ Зона '{zone_name}' не найдена в БД для тренажёра '{name}', пропущена"
-                    )
-                    continue
                 zone_id = zone_name_to_id[zone_name]
                 yaml_zone_links.add((library_id, zone_id))
             
@@ -333,15 +353,10 @@ async def seed_machines_library() -> None:
                 logger.debug(f"    ✓ Удалено связей с зонами: {len(zone_links_to_delete)}")
             
             # === ШАГ 4: Обновляем связи с мышцами ===
-            yaml_muscle_names = set(machine_data["muscles"])
+            # Все мышцы уже проверены на этапе валидации, просто создаём связи
             yaml_muscle_links: Set[Tuple[int, int]] = set()
             
             for muscle_name in yaml_muscle_names:
-                if muscle_name not in muscle_name_to_id:
-                    logger.warning(
-                        f"  ⚠ Мышца '{muscle_name}' не найдена в БД для тренажёра '{name}', пропущена"
-                    )
-                    continue
                 muscle_id = muscle_name_to_id[muscle_name]
                 yaml_muscle_links.add((library_id, muscle_id))
             
@@ -379,7 +394,7 @@ async def seed_machines_library() -> None:
         # === ШАГ 5: Удаляем тренажёры, которых нет в YAML (с проверкой использования) ===
         logger.info("Проверка тренажёров для удаления...")
         machines_to_delete = [
-            (machine_id, machine_name)
+            (machine.id, machine_name)
             for machine_name, machine in existing_machine_names.items()
             if machine_name not in yaml_machine_names
         ]
@@ -400,7 +415,9 @@ async def seed_machines_library() -> None:
         logger.info("=" * 60)
         logger.info("ИТОГОВАЯ СТАТИСТИКА:")
         logger.info(
-            f"  Тренажёры: добавлено {stats['machines_added']}, удалено {stats['machines_deleted']}, пропущено удаление {stats['machines_skipped_deletion']}"
+            f"  Тренажёры: добавлено {stats['machines_added']}, удалено {stats['machines_deleted']}, "
+            f"пропущено удаление {stats['machines_skipped_deletion']}, "
+            f"пропущено валидация {stats['machines_skipped_validation']}"
         )
         logger.info(
             f"  Алиасы: добавлено {stats['aliases_added']}, удалено {stats['aliases_deleted']}, пропущено {stats['aliases_skipped']}"
@@ -412,6 +429,13 @@ async def seed_machines_library() -> None:
             f"  Связи с мышцами: добавлено {stats['muscle_links_added']}, удалено {stats['muscle_links_deleted']}"
         )
         logger.info("=" * 60)
+        
+        if stats["machines_skipped_validation"] > 0:
+            logger.warning(
+                f"⚠ ВНИМАНИЕ: {stats['machines_skipped_validation']} тренажёр(ов) пропущено из-за несуществующих зон/мышц. "
+                f"Проверьте YAML файл и справочник мышц/зон."
+            )
+        
         logger.info("✅ Заполнение библиотеки тренажёров завершено успешно!")
 
 
