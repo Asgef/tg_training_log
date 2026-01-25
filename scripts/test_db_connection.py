@@ -227,15 +227,31 @@ async def main() -> None:
         # Если DATABASE_URL указывает на localhost:5433, используем SSH туннель
         if "localhost:5433" in database_url or "127.0.0.1:5433" in database_url:
             use_ssh_tunnel = True
-            logger.info("🔌 Обнаружен DATABASE_URL с localhost:5433, будет использован SSH туннель")
+            logger.info("🔌 Обнаружен DATABASE_URL с localhost:5433")
     
     if use_ssh_tunnel:
-        # Используем SSH туннель из конфига
-        ssh_host = os.getenv("SSH_TUNNEL_HOST", "asgef_fvds_db-tunnel")
-        logger.info(f"🔌 Использование SSH туннеля: {ssh_host}")
+        # Проверяем, доступен ли уже порт 5433 (возможно, туннель уже запущен)
+        port_available = check_port("localhost", 5433, timeout=1.0)
         
-        with ssh_tunnel_from_config(ssh_config_host=ssh_host):
+        if port_available:
+            logger.info("✅ Порт 5433 уже доступен, используем существующий SSH туннель")
+            # Просто подключаемся, туннель уже работает
             await test_connection()
+        else:
+            # Создаём новый SSH туннель
+            ssh_host = os.getenv("SSH_TUNNEL_HOST", "asgef_fvds_db-tunnel")
+            logger.info(f"🔌 Создание нового SSH туннеля: {ssh_host}")
+            
+            try:
+                with ssh_tunnel_from_config(ssh_config_host=ssh_host):
+                    await test_connection()
+            except Exception as e:
+                if "might be in use" in str(e) or "Address already in use" in str(e):
+                    logger.warning("⚠️  Порт 5433 занят, но попробуем подключиться...")
+                    # Возможно, туннель только что запустился, попробуем подключиться
+                    await test_connection()
+                else:
+                    raise
     else:
         # Прямое подключение (локальная БД или уже настроенный туннель)
         logger.info("🔌 Прямое подключение к БД (SSH туннель не требуется)")
