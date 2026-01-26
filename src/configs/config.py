@@ -44,6 +44,17 @@ class Config:
                 "GOOGLE_CREDENTIALS_JSON не установлен в переменных окружения"
             )
 
+        # Rollbar
+        self.rollbar_token: str = os.getenv("ROLLBAR", "")
+        if not self.rollbar_token:
+            logger.warning("ROLLBAR токен не установлен в переменных окружения")
+        
+        # Environment для Rollbar (production, development, staging и т.д.)
+        self.rollbar_environment: str = os.getenv("ENVIRONMENT", "production")
+        
+        # Code version для Rollbar (опционально, можно использовать git commit hash)
+        self.rollbar_code_version: str = os.getenv("CODE_VERSION", "")
+
         # Logging
         self.log_level: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
         # Умный fallback для пути к логам: если путь начинается с /app и директории нет - используем локальный путь

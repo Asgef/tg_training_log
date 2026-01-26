@@ -6,11 +6,12 @@ import traceback
 from typing import Optional, Any
 
 import structlog
+import rollbar
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, BotCommandScopeChat
 from alembic import command
 from alembic.config import Config as AlembicConfig
 
@@ -35,6 +36,26 @@ setup_logging(
     log_rotate_backup_count=config.log_rotate_backup_count,
 )
 logger = structlog.get_logger(__name__)
+
+# Инициализация Rollbar для мониторинга ошибок
+if config.rollbar_token:
+    rollbar.init(
+        access_token=config.rollbar_token,
+        environment=config.rollbar_environment,
+        handler='async',  # Использует httpx для async отправки
+        code_version=config.rollbar_code_version if config.rollbar_code_version else None,
+        allow_logging_basic_config=False,  # Не конфликтует с structlog
+        timeout=15,  # Увеличенный таймаут для HTTP запросов (по умолчанию 3 сек - слишком мало)
+        log_all_rate_limited_items=True,  # Логировать предупреждения о rate limit
+    )
+    logger.info(
+        "Rollbar инициализирован",
+        environment=config.rollbar_environment,
+        code_version=config.rollbar_code_version if config.rollbar_code_version else "не указана",
+        timeout=15,
+    )
+else:
+    logger.warning("Rollbar токен не установлен, мониторинг ошибок отключен")
 
 # Глобальные переменные для graceful shutdown
 _shutdown_event: Optional[asyncio.Event] = None
@@ -170,12 +191,60 @@ def setup_signal_handlers() -> None:
     logger.debug("Обработчики сигналов зарегистрированы (SIGTERM, SIGINT)")
 
 
+def _rollbar_task_exception_handler(loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+    """Обработчик исключений для фоновых задач Rollbar.
+    
+    Rollbar запускает фоновые задачи для отправки ошибок, и если они падают
+    с исключениями (например, ConnectTimeout), они не обрабатываются.
+    Этот обработчик перехватывает такие исключения и логирует их.
+    """
+    exception = context.get('exception')
+    task = context.get('task')
+    message = context.get('message', 'Unhandled exception in task')
+    
+    # Игнорируем CancelledError - это нормальное завершение задач
+    if isinstance(exception, asyncio.CancelledError):
+        return
+    
+    # Логируем исключения из Rollbar задач
+    if task and 'rollbar' in str(task).lower():
+        logger.warning(
+            "Исключение в фоновой задаче Rollbar",
+            event_type="rollbar_background_task_error",
+            message=message,
+            exception_type=type(exception).__name__ if exception else None,
+            exception_message=str(exception) if exception else None,
+            task_name=str(task),
+        )
+    else:
+        # Для других задач логируем как ошибку
+        logger.error(
+            "Необработанное исключение в фоновой задаче",
+            event_type="unhandled_background_task_error",
+            message=message,
+            exception_type=type(exception).__name__ if exception else None,
+            exception_message=str(exception) if exception else None,
+            task_name=str(task),
+            exc_info=exception,
+        )
+
+
 async def main() -> None:
     """Главная функция запуска бота."""
     global _shutdown_event, _bot_instance, _dispatcher_instance, _container_instance, _storage_instance
     
     # Инициализация события для shutdown
     _shutdown_event = asyncio.Event()
+    
+    # Настройка обработчика исключений для фоновых задач (включая Rollbar)
+    # Обрабатывает исключения в фоновых задачах, которые не были await'нуты
+    # (например, задачи Rollbar для отправки ошибок)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # Если loop ещё не запущен, используем get_event_loop()
+        loop = asyncio.get_event_loop()
+    loop.set_exception_handler(_rollbar_task_exception_handler)
     
     # Настройка обработчиков сигналов
     setup_signal_handlers()
@@ -237,8 +306,8 @@ async def main() -> None:
     dp.include_router(machine.router)
     dp.include_router(common.router)
     
-    # Настройка команд бота
-    await bot.set_my_commands([
+    # Настройка команд бота (общие команды для всех пользователей)
+    bot_commands = [
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="menu", description="Показать меню"),
         BotCommand(command="workout_start", description="Начать тренировку"),
@@ -246,7 +315,34 @@ async def main() -> None:
         BotCommand(command="record_set", description="Записать подход"),
         BotCommand(command="machines", description="Управление тренажерами"),
         BotCommand(command="google_sheets", description="Настройка Google Sheets"),
-    ])
+    ]
+    
+    # Устанавливаем общие команды для всех пользователей
+    await bot.set_my_commands(bot_commands)
+    
+    # Устанавливаем команды для администраторов (включая тестовую команду Rollbar)
+    if config.rollbar_token and config.admin_ids:
+        admin_commands = bot_commands + [
+            BotCommand(command="test_rollbar", description="Тест Rollbar (только админы)")
+        ]
+        
+        # Устанавливаем команды для каждого администратора отдельно
+        for admin_id in config.admin_ids:
+            try:
+                await bot.set_my_commands(
+                    admin_commands,
+                    scope=BotCommandScopeChat(chat_id=admin_id)
+                )
+                logger.debug(
+                    "Команды для администратора установлены",
+                    admin_id=admin_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Не удалось установить команды для администратора",
+                    admin_id=admin_id,
+                    error=str(e),
+                )
     
     logger.info("Бот начал polling")
     
@@ -314,6 +410,17 @@ if __name__ == "__main__":
             error_message=str(e),
             exc_info=True,
         )
+        # Отправка критичной ошибки в Rollbar
+        if config.rollbar_token:
+            try:
+                rollbar.report_exc_info(exc_info=sys.exc_info(), level='critical')
+            except Exception as rollbar_error:
+                # Если Rollbar сам упал, логируем, но не прерываем выполнение
+                logger.error(
+                    "Не удалось отправить ошибку в Rollbar",
+                    rollbar_error=str(rollbar_error),
+                    exc_info=True,
+                )
         # Также выводим в stderr на случай, если логирование сломано
         print("КРИТИЧЕСКАЯ ОШИБКА (вывод в stderr):", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)

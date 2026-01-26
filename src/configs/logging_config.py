@@ -117,6 +117,15 @@ def setup_logging(
         force=True,
     )
     
+    # Отключаем детальные логи httpcore/httpx (они слишком шумные)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore.http11").setLevel(logging.WARNING)
+    logging.getLogger("httpcore.connection").setLevel(logging.WARNING)
+    
+    # Настраиваем логирование Rollbar (убираем детальные payload логи)
+    logging.getLogger("rollbar").setLevel(logging.WARNING)
+    
     # Настраиваем structlog
     structlog.configure(
         processors=[

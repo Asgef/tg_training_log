@@ -261,3 +261,99 @@ async def export_data_to_sheets_callback(
 async def handle_google_sheets_button(message: Message) -> None:
     """Обработчик кнопки 'Google Sheets'."""
     await cmd_google_sheets(message)
+
+
+# Тестовая команда для проверки Rollbar (только для админов)
+@router.message(Command("test_rollbar"))
+async def cmd_test_rollbar(message: Message) -> None:
+    """Тестовая команда для проверки интеграции Rollbar.
+    
+    Вызывает тестовую ошибку, которая должна отправиться в Rollbar.
+    Доступна только администраторам.
+    """
+    from src.configs.config import config
+    import rollbar
+    import structlog
+    
+    # Проверка, что пользователь - админ
+    if message.from_user.id not in config.admin_ids:
+        await message.answer("Эта команда доступна только администраторам.")
+        return
+    
+    logger.info(
+        "Администратор запустил тест Rollbar",
+        event_type="rollbar_test_triggered",
+        user_id=message.from_user.id,
+    )
+    
+    # Создаём тестовую ошибку
+    test_error = RuntimeError("Test error for Rollbar integration check")
+    
+    # Отправляем в Rollbar напрямую (не через middleware, чтобы не показывать ошибку пользователю)
+    if config.rollbar_token:
+        try:
+            # Получаем контекст из structlog
+            context = structlog.contextvars.get_contextvars()
+            correlation_id = context.get("correlation_id")
+            update_id = context.get("update_id")
+            
+            # Маскируем user_id
+            user_id_str = str(message.from_user.id)
+            if len(user_id_str) > 4:
+                masked_user_id = "*" * (len(user_id_str) - 4) + user_id_str[-4:]
+            else:
+                masked_user_id = "*" * len(user_id_str)
+            
+            # Формируем payload для Rollbar
+            payload_data = {
+                "event_type": "rollbar_test",
+                "user_id": masked_user_id,
+            }
+            if correlation_id:
+                payload_data["correlation_id"] = correlation_id
+            if update_id:
+                payload_data["update_id"] = update_id
+            
+            # Отправляем в Rollbar
+            rollbar.report_exc_info(
+                exc_info=(type(test_error), test_error, test_error.__traceback__),
+                level="info",  # Используем info для тестовых ошибок
+                request_data=payload_data,
+            )
+            
+            logger.info(
+                "Тестовая ошибка отправлена в Rollbar",
+                event_type="rollbar_test_sent",
+                user_id=message.from_user.id,
+                correlation_id=correlation_id,
+                update_id=update_id,
+            )
+            
+            # Показываем успешное сообщение
+            await message.answer(
+                "✅ Тест Rollbar выполнен успешно!\n\n"
+                "Тестовая ошибка отправлена в Rollbar. "
+                "Проверьте dashboard Rollbar через несколько секунд, чтобы убедиться, что данные получены."
+            )
+            
+        except Exception as rollbar_error:
+            # Если не удалось отправить в Rollbar, показываем ошибку
+            logger.error(
+                "Не удалось отправить тестовую ошибку в Rollbar",
+                event_type="rollbar_test_failed",
+                user_id=message.from_user.id,
+                error=str(rollbar_error),
+                exc_info=True,
+            )
+            await message.answer(
+                "❌ Ошибка при отправке тестовой ошибки в Rollbar.\n\n"
+                f"Детали: {str(rollbar_error)}\n"
+                "Проверьте логи приложения для получения дополнительной информации."
+            )
+    else:
+        # Rollbar не настроен
+        await message.answer(
+            "⚠️ Rollbar не настроен.\n\n"
+            "Токен Rollbar не установлен в переменных окружения. "
+            "Установите переменную ROLLBAR для включения мониторинга."
+        )

@@ -1,11 +1,13 @@
 """Middleware для глобальной обработки ошибок."""
-from typing import Callable, Dict, Any, Awaitable
+from typing import Callable, Dict, Any, Awaitable, Optional
 import structlog
+import rollbar
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message, CallbackQuery
 from aiogram.exceptions import TelegramBadRequest, TelegramAPIError
 from pydantic import ValidationError as PydanticValidationError
 
+from src.configs.config import config
 from src.infrastructure.web.handlers.errors import (
     BaseApplicationError,
     ErrorMessages,
@@ -20,6 +22,11 @@ class ErrorHandlingMiddleware(BaseMiddleware):
     Перехватывает все исключения, возникающие в handlers, логирует их
     и отправляет понятные сообщения пользователям.
     """
+    
+    def __init__(self):
+        """Инициализация middleware."""
+        super().__init__()
+        self._current_data: Optional[Dict[str, Any]] = None
     
     async def __call__(
         self,
@@ -37,6 +44,9 @@ class ErrorHandlingMiddleware(BaseMiddleware):
         Returns:
             Результат выполнения handler или None при ошибке
         """
+        # Сохраняем data для использования в методах обработки ошибок
+        self._current_data = data
+        
         # Получаем user_id из события
         user_id = None
         if isinstance(event, (Message, CallbackQuery)):
@@ -78,6 +88,9 @@ class ErrorHandlingMiddleware(BaseMiddleware):
             # Обработка всех остальных неожиданных ошибок
             await self._handle_unexpected_error(e, event, user_id)
             return None
+        finally:
+            # Очищаем data после обработки для предотвращения утечек
+            self._current_data = None
     
     async def _handle_application_error(
         self,
@@ -202,6 +215,15 @@ class ErrorHandlingMiddleware(BaseMiddleware):
             exc_info=True,
         )
         
+        # Отправляем в Rollbar
+        self._report_to_rollbar(
+            error=error,
+            user_id=user_id,
+            event_type="telegram_api_error",
+            level="error",
+            data=self._current_data,
+        )
+        
         user_message = "Произошла ошибка при взаимодействии с Telegram. Попробуйте позже."
         await self._send_error_message(event, user_message)
     
@@ -227,7 +249,113 @@ class ErrorHandlingMiddleware(BaseMiddleware):
             exc_info=True,
         )
         
+        # Отправляем в Rollbar
+        self._report_to_rollbar(
+            error=error,
+            user_id=user_id,
+            event_type="unexpected_error",
+            level="error",
+            extra_data={"error_type": type(error).__name__},
+            data=self._current_data,
+        )
+        
         await self._send_error_message(event, ErrorMessages.GENERIC_ERROR)
+    
+    def _report_to_rollbar(
+        self,
+        error: Exception,
+        user_id: Optional[int],
+        event_type: str,
+        level: str = "error",
+        extra_data: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Отправить ошибку в Rollbar для мониторинга.
+        
+        Args:
+            error: Исключение для отправки
+            user_id: ID пользователя (будет замаскирован)
+            event_type: Тип события для классификации
+            level: Уровень ошибки (error, warning, critical)
+            extra_data: Дополнительные данные для контекста
+            data: Данные из middleware (для получения correlation_id, update_id)
+        """
+        if not config.rollbar_token:
+            return  # Rollbar не настроен, пропускаем
+        
+        try:
+            # Получаем контекст из data или structlog contextvars
+            correlation_id: Optional[str] = None
+            update_id: Optional[int] = None
+            
+            if data:
+                correlation_id = data.get("correlation_id")
+                update_id = data.get("log_update_id")
+            else:
+                # Пытаемся получить из structlog contextvars
+                try:
+                    context = structlog.contextvars.get_contextvars()
+                    correlation_id = context.get("correlation_id")
+                    update_id = context.get("update_id")
+                except Exception:
+                    pass
+            
+            # Маскируем user_id (оставляем последние 4 цифры)
+            masked_user_id: Optional[str] = None
+            if user_id:
+                user_id_str = str(user_id)
+                if len(user_id_str) > 4:
+                    masked_user_id = "*" * (len(user_id_str) - 4) + user_id_str[-4:]
+                else:
+                    masked_user_id = "*" * len(user_id_str)
+            
+            # Формируем payload для Rollbar
+            payload_data: Dict[str, Any] = {
+                "event_type": event_type,
+            }
+            
+            if masked_user_id:
+                payload_data["user_id"] = masked_user_id
+            if correlation_id:
+                payload_data["correlation_id"] = correlation_id
+            if update_id:
+                payload_data["update_id"] = update_id
+            if extra_data:
+                payload_data.update(extra_data)
+            
+            # Отправляем в Rollbar
+            # Примечания:
+            # 1. Rollbar SDK не бросает исключение при rate limit - только логирует предупреждение
+            #    Проверяйте логи на наличие "Rollbar: over rate limit, data was dropped."
+            # 2. Rollbar запускает фоновую задачу для отправки, поэтому исключения (например, ConnectTimeout)
+            #    могут возникнуть в фоновой задаче. Они обрабатываются через event loop exception handler
+            #    в main.py (_rollbar_task_exception_handler)
+            # 3. Таймаут для HTTP запросов настроен в rollbar.init(timeout=15) в main.py
+            rollbar.report_exc_info(
+                exc_info=(type(error), error, error.__traceback__),
+                level=level,
+                request_data=payload_data,
+            )
+            
+            # Логируем попытку отправки (сам Rollbar может отбросить из-за rate limit или таймаута)
+            logger.debug(
+                "Попытка отправки ошибки в Rollbar",
+                event_type="rollbar_report_attempted",
+                error_type=type(error).__name__,
+                event_type_reported=event_type,
+                user_id=masked_user_id,
+                correlation_id=correlation_id,
+                update_id=update_id,
+            )
+        except Exception as rollbar_error:
+            # Если Rollbar сам упал, логируем, но не прерываем выполнение
+            logger.error(
+                "Не удалось отправить ошибку в Rollbar",
+                event_type="rollbar_report_failed",
+                rollbar_error=str(rollbar_error),
+                original_error=str(error),
+                exc_info=True,
+            )
     
     async def _send_error_message(
         self,
