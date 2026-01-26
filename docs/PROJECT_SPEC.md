@@ -1,6 +1,6 @@
 # Актуальная спецификация проекта TG Training Log Bot
 
-**Дата обновления:** 2026-01-16  
+**Дата обновления:** 2026-01-26  
 **Источник истины:** код в `src/`, схема БД `docs/db/schema.dbml`, ТЗ/изменения `docs/UI.md`, `docs/tmp/*`.
 
 ---
@@ -12,7 +12,7 @@ Telegram-бот для ведения тренировочного журнал�
 
 ## 2) Роли и доступ
 - **Пользователь**: работает с ботом после одобрения регистрации.
-- **Администратор**: подтверждает/отклоняет запросы регистрации.
+- **Администратор**: подтверждает/отклоняет запросы регистрации. Список администраторов задаётся через переменную окружения `ADMIN_ID` (через запятую). Администраторы могут пропускать проверку регистрации в `RegistrationCheckMiddleware`.
 
 Доступ к функциям закрыт по флагу `users.is_registered = true`.
 
@@ -22,21 +22,26 @@ Telegram-бот для ведения тренировочного журнал�
 **Clean Architecture**: `domain` (модели) → `application` (use cases, DTO) → `infrastructure` (БД, Telegram, Google Sheets).
 
 **Middleware цепочка** (см. `src/main.py`):
-1. Logging (correlation_id, user_id, chat_id, update_id)
-2. Database (session per request + commit/rollback)
-3. Dependency Injection (репозитории + use cases)
-4. Idempotency (dedup по `update_id`)
-5. Registration Check (закрытый доступ)
-6. Error Handling (глобальная обработка)
+1. Logging (correlation_id, user_id, chat_id, update_id) — `LoggingMiddleware`
+2. Database (session per request + commit/rollback) — `DatabaseMiddleware`
+3. Dependency Injection (репозитории + use cases) — `DependencyInjectionMiddleware`
+4. Idempotency (dedup по `update_id`) — `IdempotencyMiddleware`
+5. Registration Check (закрытый доступ) — `RegistrationCheckMiddleware`
+6. Error Handling (глобальная обработка) — `ErrorHandlingMiddleware`
 
 **Idempotency:** через `processed_updates` и `IdempotencyMiddleware` (savepoint, дедуп по `update_id`).
+
+**FSM Storage:** используется `MemoryStorage` (в dev-режиме). Для production рекомендуется Redis (см. правила проекта).
+
+**Graceful Shutdown:** реализован обработка SIGTERM/SIGINT с таймаутом 30 секунд. Корректно закрывает polling, сессию бота, FSM storage, соединения с БД и отменяет активные задачи.
 
 ---
 
 ## 4) Основные сценарии и бизнес-логика
 
 ### 4.1 Регистрация
-**Команда/UX:** `/start` и кнопка “Зарегистрироваться”.  
+**Команды:** `/start`, `/menu` (показать главное меню).  
+**UX:** кнопка "Зарегистрироваться" в сообщении для незарегистрированных пользователей.
 **Логика:**
 - Если `user.is_registered = true` → показывается главное меню.
 - Если пользователь существует, но не зарегистрирован → сообщение “ожидает одобрения”.
@@ -51,7 +56,7 @@ Telegram-бот для ведения тренировочного журнал�
 
 ### 4.3 Управление тренировкой
 **Команды:** `/workout_start`, `/workout_end`, `/record_set`.  
-**Кнопки:** “Начать тренировку”, “Завершить тренировку”, “Отменить тренировку”.
+**Кнопки:** "🏋️ Начать тренировку", "✅ Завершить тренировку", "❌ Отменить тренировку".
 
 **Старт тренировки:**
 - Проверка: у пользователя есть хотя бы один активный (не архивный) тренажёр.
@@ -102,19 +107,20 @@ Telegram-бот для ведения тренировочного журнал�
 **Скрипт наполнения:** `scripts/seed_muscles.py`.
 
 ### 4.8 Экспорт в Google Sheets
+**Команда:** `/google_sheets` — меню управления Google Sheets (настройка и экспорт).  
 **Настройка:** пользователь отправляет URL таблицы; сохраняются `google_sheet_url`, `spreadsheet_id`.  
-**Доступ:** сервисный аккаунт, пользователь выдаёт Editor.  
+**Доступ:** сервисный аккаунт `tg-training@tgtraining.iam.gserviceaccount.com`, пользователь выдаёт Editor.  
 **Экспортируемые листы:**
 - **Append-only:** `LOG_SETS`, `LOG_MUSCLES`
 - **Обновляемые:** `REF_MACHINES`, `REF_ZONES`, `REF_MUSCLES`, `REF_ZONE_MUSCLES`
-**Идемпотентность:** по `users.last_exported_set_id` (не дублировать `set_id`).
+**Идемпотентность:** по `users.last_exported_set_id` (не дублировать `set_id`). После успешного экспорта обновляется `last_exported_set_id` на максимальный `set_id` из экспортированных записей.
 **Колонки подходов:** `LOG_SETS` и `LOG_MUSCLES` содержат `rir` вместо `is_failure`.
 
 ---
 
 ## 5) Доменная модель
 Сущности (см. `src/domain/models.py`):
-- `User`: Telegram-пользователь, статус регистрации, настройки Google Sheets, timezone.
+- `User`: Telegram-пользователь, статус регистрации, настройки Google Sheets (`google_sheet_url`, `spreadsheet_id`, `last_exported_set_id`), timezone, Telegram-данные (`telegram_username`, `telegram_firstname`, `telegram_lastname`).
 - `MuscleZone`, `Muscle`, `MuscleZoneMuscle`: справочник “зона↔мышца” (M:N).
 - `Machine`: тренажёр пользователя, пометки зон/мышц, `is_archived`.
 - `MachineZone`, `MachineMuscle`: связи тренажёра с зонами/мышцами.
@@ -167,21 +173,35 @@ Telegram-бот для ведения тренировочного журнал�
 - Идемпотентность Telegram updates через `processed_updates`.
 - Транзакции per-request (DatabaseMiddleware).
 - Валидация пользовательского ввода через Pydantic DTO.
-- Структурированные логи с корреляцией (LoggingMiddleware).
+- Структурированные логи с корреляцией (`structlog`, LoggingMiddleware). Ротация логов через `RotatingFileHandler` (настраивается через env: `LOG_ROTATE_WHEN`, `LOG_ROTATE_INTERVAL`, `LOG_ROTATE_BACKUP_COUNT`).
 - Глобальная обработка ошибок (ErrorHandlingMiddleware).
-- Автопрогон Alembic миграций при старте.
+- Автопрогон Alembic миграций при старте (в `main.py` перед инициализацией бота).
+- Graceful shutdown с обработкой SIGTERM/SIGINT (таймаут 30 секунд).
 
 ---
 
 ## 10) Карта кода
+- `src/main.py` — точка входа, инициализация бота, middleware, graceful shutdown.
 - `src/domain/models.py` — доменные сущности.
 - `src/application/use_cases/*` — бизнес-логика.
 - `src/application/dto/*` — DTO и конвертеры.
 - `src/infrastructure/db/repositories/*` — доступ к БД.
-- `src/infrastructure/web/handlers/*` — Telegram handlers.
+- `src/infrastructure/web/handlers/*` — Telegram handlers (registration, workout, machine, common).
 - `src/infrastructure/web/middleware/*` — logging/DI/DB/idempotency/errors.
+- `src/infrastructure/web/middlewares.py` — RegistrationCheckMiddleware.
 - `src/infrastructure/services/google_sheets_client.py` — интеграция Sheets.
+- `src/configs/config.py` — конфигурация из env-переменных.
+- `src/configs/logging_config.py` — настройка структурированного логирования.
 - `docs/db/schema.dbml` — актуальная схема БД.
+
+**Зарегистрированные команды бота:**
+- `/start` — главное меню
+- `/menu` — показать меню
+- `/workout_start` — начать тренировку
+- `/workout_end` — завершить тренировку
+- `/record_set` — записать подход
+- `/machines` — управление тренажерами
+- `/google_sheets` — настройка Google Sheets
 
 ---
 
@@ -189,3 +209,5 @@ Telegram-бот для ведения тренировочного журнал�
 - Нет редактирования/удаления уже записанных подходов.
 - Нет исторического UI просмотра тренировок (только запись/экспорт).
 - Перенос данных старой схемы не покрыт здесь (кроме сохранения пользователей).
+- FSM storage использует `MemoryStorage` (в dev). Для production рекомендуется Redis (см. `.cursor/rules/dev.mdc`).
+- Логирование: используется `structlog` с ротацией файлов. Логи пишутся в файл (путь настраивается через `LOG_FILE_PATH`) и в stdout/stderr.
