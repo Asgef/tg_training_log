@@ -15,11 +15,11 @@ from src.infrastructure.db.repositories.muscle_repository import MuscleRepositor
 from src.infrastructure.db.repositories.set_entry_repository import SetEntryRepository
 from src.infrastructure.db.repositories.user_repository import UserRepository
 from src.infrastructure.services.google_sheets_client import GoogleSheetsClient
+from src.configs.config import config
 
 logger = structlog.get_logger(__name__)
 
 router = Router()
-SERVICE_ACCOUNT_EMAIL = "tg-training@tgtraining.iam.gserviceaccount.com"
 
 class GoogleSheetsStates(StatesGroup):
     waiting_for_sheet_url = State()
@@ -58,15 +58,15 @@ async def setup_google_sheets_callback(callback: CallbackQuery, state: FSMContex
         await callback.message.edit_text(
             "📊 Настройка Google Sheets\n\n"
             "Для подключения таблицы предоставьте доступ сервисному аккаунту и отправьте ссылку на таблицу.\n\n"
-            "📋 Шаги:\n\n"
-            "1️⃣ Откройте вашу Google Таблицу в браузере.\n"
-            "2️⃣ Нажмите кнопку \"Настроить доступ\" (Share) в правом верхнем углу.\n"
-            "3️⃣ В поле \"Добавить людей и группы\" вставьте адрес сервисного аккаунта:\n"
-            f"   `{SERVICE_ACCOUNT_EMAIL}`\n"
-            "4️⃣ Выберите уровень доступа: \"Редактор\" (Editor).\n"
-            "5️⃣ Нажмите \"Отправить\" (Send).\n"
-            "6️⃣ Скопируйте URL таблицы из адресной строки браузера (формат: `https://docs.google.com/spreadsheets/d/...`) и отправьте его боту.\n\n"
-            "После этого бот сможет экспортировать ваши данные в таблицу."
+            "<b>Шаги:</b>\n\n"
+            "1. Откройте вашу Google Таблицу в браузере\n"
+            "2. Нажмите кнопку \"Настроить доступ\" (Share) в правом верхнем углу\n"
+            "3. В поле \"Добавить людей и группы\" вставьте адрес:\n"
+            f"   <code>{config.service_account_email}</code>\n"
+            "4. Выберите уровень доступа: <b>Редактор</b> (Editor)\n"
+            "5. Нажмите \"Отправить\" (Send)\n"
+            "6. Скопируйте URL таблицы из адресной строки браузера и отправьте его боту\n\n"
+            "Формат URL: <code>https://docs.google.com/spreadsheets/d/...</code>"
         )
         await state.set_state(GoogleSheetsStates.waiting_for_sheet_url)
         await callback.answer()
@@ -218,7 +218,7 @@ async def export_data_to_sheets_callback(
         except PermissionError:
             await callback.message.answer(
                 "Нет доступа к таблице. Дайте доступ редактора сервисному аккаунту:\n"
-                f"`{SERVICE_ACCOUNT_EMAIL}`"
+                f"`{config.service_account_email}`"
             )
         except ValueError as e:
             logger.warning(

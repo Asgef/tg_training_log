@@ -48,6 +48,7 @@ def build_main_menu(has_active_workout: bool) -> ReplyKeyboardMarkup:
         keyboard_rows.append([KeyboardButton(text="💪 Тренажеры")])
 
     keyboard_rows.append([KeyboardButton(text="📊 Google Sheets")])
+    keyboard_rows.append([KeyboardButton(text="ℹ️ Справка")])
 
     keyboard = ReplyKeyboardMarkup(
         keyboard=keyboard_rows,

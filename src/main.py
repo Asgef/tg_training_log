@@ -19,7 +19,7 @@ from alembic.config import Config as AlembicConfig
 from src.configs.config import config
 from src.configs.logging_config import setup_logging
 from src.container import Container
-from src.infrastructure.web.handlers import registration, workout, machine, common
+from src.infrastructure.web.handlers import registration, workout, machine, common, about
 from src.infrastructure.web.middlewares import RegistrationCheckMiddleware  # Из middlewares.py файла
 from src.infrastructure.web.middleware.logging import LoggingMiddleware  # Из middleware/ папки
 from src.infrastructure.web.middleware.database import DatabaseMiddleware  # Из middleware/ папки
@@ -305,6 +305,7 @@ async def main() -> None:
     dp.include_router(workout.router)
     dp.include_router(machine.router)
     dp.include_router(common.router)
+    dp.include_router(about.router)
     
     # Настройка команд бота (общие команды для всех пользователей)
     bot_commands = [

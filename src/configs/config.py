@@ -43,6 +43,12 @@ class Config:
             logger.warning(
                 "GOOGLE_CREDENTIALS_JSON не установлен в переменных окружения"
             )
+        
+        # Google Sheets Service Account Email
+        self.service_account_email: str = os.getenv(
+            "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+            "tg-training@tgtraining.iam.gserviceaccount.com"
+        )
 
         # Rollbar
         self.rollbar_token: str = os.getenv("ROLLBAR", "")

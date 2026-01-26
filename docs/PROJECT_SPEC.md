@@ -1,6 +1,6 @@
 # Актуальная спецификация проекта TG Training Log Bot
 
-**Дата обновления:** 2026-01-26  
+**Дата обновления:** 2026-01-26 (добавлена интеграция Rollbar)  
 **Источник истины:** код в `src/`, схема БД `docs/db/schema.dbml`, ТЗ/изменения `docs/UI.md`, `docs/tmp/*`.
 
 ---
@@ -12,7 +12,7 @@ Telegram-бот для ведения тренировочного журнал�
 
 ## 2) Роли и доступ
 - **Пользователь**: работает с ботом после одобрения регистрации.
-- **Администратор**: подтверждает/отклоняет запросы регистрации. Список администраторов задаётся через переменную окружения `ADMIN_ID` (через запятую). Администраторы могут пропускать проверку регистрации в `RegistrationCheckMiddleware`.
+- **Администратор**: подтверждает/отклоняет запросы регистрации. Список администраторов задаётся через переменную окружения `ADMIN_ID` (через запятую). Администраторы могут пропускать проверку регистрации в `RegistrationCheckMiddleware`. Администраторы имеют доступ к команде `/test_rollbar` для тестирования мониторинга ошибок (команда видна только администраторам в списке команд бота).
 
 Доступ к функциям закрыт по флагу `users.is_registered = true`.
 
@@ -167,6 +167,28 @@ Telegram-бот для ведения тренировочного журнал�
 - Ошибки доступа сообщаются пользователю (нужен Editor).
 - Структура листов и порядок колонок — по `docs/tmp/dataset_logick.md`.
 
+**Rollbar (мониторинг ошибок):**
+- Интеграция для отслеживания ошибок в production.
+- Настройка через переменные окружения:
+  - `ROLLBAR` — токен доступа к Rollbar API
+  - `ENVIRONMENT` — окружение (production, development, staging; по умолчанию "production")
+  - `CODE_VERSION` — версия кода (опционально, можно использовать git commit hash)
+- Конфигурация в `rollbar.init()`:
+  - `handler='async'` — использует httpx для асинхронной отправки
+  - `timeout=15` — таймаут HTTP запросов (увеличен с 3 до 15 секунд для стабильности)
+  - `log_all_rate_limited_items=True` — логирование предупреждений о rate limit
+- Отправка ошибок:
+  - Все неожиданные ошибки автоматически отправляются в Rollbar через `ErrorHandlingMiddleware`
+  - Ошибки Telegram API также отправляются в Rollbar
+  - Контекст ошибки включает: `user_id` (замаскированный), `correlation_id`, `update_id`, `event_type`
+- Обработка фоновых задач:
+  - Обработчик исключений для фоновых задач Rollbar (`_rollbar_task_exception_handler` в `main.py`)
+  - Перехватывает исключения в фоновых задачах (например, `ConnectTimeout`) и логирует их как предупреждения
+- Тестовая команда `/test_rollbar`:
+  - Доступна только администраторам (видна только в списке команд для админов через `BotCommandScopeChat`)
+  - Создаёт тестовую ошибку и отправляет её в Rollbar
+  - Показывает пользователю результат: успех или ошибка с деталями
+
 ---
 
 ## 9) НФТ и надёжность
@@ -174,24 +196,34 @@ Telegram-бот для ведения тренировочного журнал�
 - Транзакции per-request (DatabaseMiddleware).
 - Валидация пользовательского ввода через Pydantic DTO.
 - Структурированные логи с корреляцией (`structlog`, LoggingMiddleware). Ротация логов через `RotatingFileHandler` (настраивается через env: `LOG_ROTATE_WHEN`, `LOG_ROTATE_INTERVAL`, `LOG_ROTATE_BACKUP_COUNT`).
-- Глобальная обработка ошибок (ErrorHandlingMiddleware).
+- Глобальная обработка ошибок (ErrorHandlingMiddleware):
+  - Перехватывает все исключения в handlers
+  - Отправляет ошибки в Rollbar для мониторинга (если настроен токен)
+  - Маскирует PII (user_id) в данных, отправляемых в Rollbar
+  - Логирует ошибки с полным контекстом (correlation_id, update_id, user_id)
+- Мониторинг ошибок через Rollbar:
+  - Автоматическая отправка всех неожиданных ошибок и ошибок Telegram API
+  - Обработка rate limit и таймаутов (таймаут увеличен до 15 секунд)
+  - Обработчик исключений для фоновых задач Rollbar предотвращает "Task exception was never retrieved"
 - Автопрогон Alembic миграций при старте (в `main.py` перед инициализацией бота).
 - Graceful shutdown с обработкой SIGTERM/SIGINT (таймаут 30 секунд).
 
 ---
 
 ## 10) Карта кода
-- `src/main.py` — точка входа, инициализация бота, middleware, graceful shutdown.
+- `src/main.py` — точка входа, инициализация бота, middleware, graceful shutdown, инициализация Rollbar, обработчик исключений для фоновых задач Rollbar (`_rollbar_task_exception_handler`), настройка команд бота (включая команды для администраторов через `BotCommandScopeChat`).
 - `src/domain/models.py` — доменные сущности.
 - `src/application/use_cases/*` — бизнес-логика.
 - `src/application/dto/*` — DTO и конвертеры.
 - `src/infrastructure/db/repositories/*` — доступ к БД.
-- `src/infrastructure/web/handlers/*` — Telegram handlers (registration, workout, machine, common).
-- `src/infrastructure/web/middleware/*` — logging/DI/DB/idempotency/errors.
+- `src/infrastructure/web/handlers/*` — Telegram handlers (registration, workout, machine, common):
+  - `common.py` — общие команды, включая `/test_rollbar` (только для админов)
+- `src/infrastructure/web/middleware/*` — logging/DI/DB/idempotency/errors:
+  - `error_handling.py` — глобальная обработка ошибок, отправка в Rollbar (`_report_to_rollbar`)
 - `src/infrastructure/web/middlewares.py` — RegistrationCheckMiddleware.
 - `src/infrastructure/services/google_sheets_client.py` — интеграция Sheets.
-- `src/configs/config.py` — конфигурация из env-переменных.
-- `src/configs/logging_config.py` — настройка структурированного логирования.
+- `src/configs/config.py` — конфигурация из env-переменных (включая настройки Rollbar: `rollbar_token`, `rollbar_environment`, `rollbar_code_version`).
+- `src/configs/logging_config.py` — настройка структурированного логирования, подавление избыточных логов от Rollbar/httpx.
 - `docs/db/schema.dbml` — актуальная схема БД.
 
 **Зарегистрированные команды бота:**
@@ -202,6 +234,7 @@ Telegram-бот для ведения тренировочного журнал�
 - `/record_set` — записать подход
 - `/machines` — управление тренажерами
 - `/google_sheets` — настройка Google Sheets
+- `/test_rollbar` — тест интеграции Rollbar (только для администраторов, видна только админам в списке команд)
 
 ---
 
@@ -211,3 +244,4 @@ Telegram-бот для ведения тренировочного журнал�
 - Перенос данных старой схемы не покрыт здесь (кроме сохранения пользователей).
 - FSM storage использует `MemoryStorage` (в dev). Для production рекомендуется Redis (см. `.cursor/rules/dev.mdc`).
 - Логирование: используется `structlog` с ротацией файлов. Логи пишутся в файл (путь настраивается через `LOG_FILE_PATH`) и в stdout/stderr.
+- Мониторинг ошибок: Rollbar опционален (работает только при наличии токена `ROLLBAR`). При отсутствии токена ошибки логируются локально, но не отправляются в Rollbar. Rollbar SDK не предоставляет callback для проверки успешной отправки — проверка выполняется через dashboard Rollbar.
